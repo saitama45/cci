@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Illuminate\Support\Facades\Cache;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -40,13 +41,20 @@ class HandleInertiaRequests extends Middleware
         $permissions = [];
         
         if ($user) {
+            // Cache permissions for 60 seconds to reduce DB queries on navigation
+            $permissions = Cache::remember('user_permissions_' . $user->id, 60, function () use ($user) {
+                $user->loadMissing(['roles.companies']);
+                $perms = [];
+                // Get permissions through roles to avoid Spatie issues
+                foreach ($user->roles as $role) {
+                    $rolePermissions = $role->permissions()->pluck('name')->toArray();
+                    $perms = array_merge($perms, $rolePermissions);
+                }
+                return array_unique($perms);
+            });
+            
+            // Ensure necessary relations are loaded for the user object in the frontend
             $user->loadMissing(['roles.companies']);
-            // Get permissions through roles to avoid Spatie issues
-            foreach ($user->roles as $role) {
-                $rolePermissions = $role->permissions()->pluck('name')->toArray();
-                $permissions = array_merge($permissions, $rolePermissions);
-            }
-            $permissions = array_unique($permissions);
         }
         
         return array_merge(parent::share($request), [

@@ -31,6 +31,7 @@ These tables manage the physical assets of CCI (Amiya Raya, Shanti, etc.).
 | `ProjectId` | `INT` | Foreign Key to `Projects` |
 | `BlockNum` | `INT` | Block Number |
 | `LotNum` | `INT` | Lot Number |
+| `Name` | `NVARCHAR(100)` | Full Unit Model Name |
 | `SqmArea` | `DECIMAL(10,2)` | Total square meters |
 | `Status` | `NVARCHAR(20)` | Available, Reserved, Sold, Blocked |
 | `SvgPath` | `NVARCHAR(MAX)` | The SVG `<path>` data for the interactive map |

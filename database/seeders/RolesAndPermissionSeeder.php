@@ -34,6 +34,30 @@ class RolesAndPermissionSeeder extends Seeder
             'companies.create' => 'Create companies',
             'companies.edit' => 'Edit companies',
             'companies.delete' => 'Delete companies',
+
+            // Projects
+            'projects.view' => 'View projects',
+            'projects.create' => 'Create projects',
+            'projects.edit' => 'Edit projects',
+            'projects.delete' => 'Delete projects',
+
+            // Units
+            'units.view' => 'View units',
+            'units.create' => 'Create units',
+            'units.edit' => 'Edit units',
+            'units.delete' => 'Delete units',
+
+            // Price Lists
+            'price_lists.view' => 'View price lists',
+            'price_lists.create' => 'Create price lists',
+            'price_lists.edit' => 'Edit price lists',
+            'price_lists.delete' => 'Delete price lists',
+            
+            // Reservations
+            'reservations.view' => 'View reservations',
+            
+            // Collections
+            'collections.view' => 'View collections',
         ];
 
         // Create permissions
@@ -46,9 +70,9 @@ class RolesAndPermissionSeeder extends Seeder
         $userRole = Role::firstOrCreate(['name' => 'User']);
 
         // Assign permissions to roles
-        $admin->givePermissionTo(Permission::all());
+        $admin->syncPermissions(Permission::all());
         
-        $userRole->givePermissionTo([
+        $userRole->syncPermissions([
             'dashboard.view',
         ]);
 

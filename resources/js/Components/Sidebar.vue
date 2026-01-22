@@ -9,7 +9,8 @@ import {
     ShieldCheckIcon,
     BuildingOfficeIcon,
     ClipboardDocumentListIcon,
-    CurrencyDollarIcon
+    CurrencyDollarIcon,
+    MapIcon
 } from '@heroicons/vue/24/outline';
 import { usePermission } from '@/Composables/usePermission';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
@@ -25,7 +26,7 @@ const emit = defineEmits(['toggle']);
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user || {});
-const { hasPermission } = usePermission();
+const { hasPermission, hasAnyPermission } = usePermission();
 
 const toggleSidebar = () => {
     emit('toggle');
@@ -98,6 +99,7 @@ const handleMouseLeave = () => {
             <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar z-10">
                 <!-- Dashboard -->
                 <Link
+                    v-if="hasPermission('dashboard.view')"
                     :href="route('dashboard')"
                     :class="[
                         'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-6',
@@ -119,123 +121,191 @@ const handleMouseLeave = () => {
                 </Link>
 
                 <!-- Module: Admin & Security -->
-                <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Administration</p>
-                </div>
-                 <div v-else class="my-4 border-t border-slate-800"></div>
+                <template v-if="hasAnyPermission(['users.view', 'companies.view', 'roles.view'])">
+                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Administration</p>
+                    </div>
+                    <div v-else class="my-4 border-t border-slate-800"></div>
 
 
-                <!-- Users -->
-                <Link
-                    :href="route('users.index')"
-                    :class="[
-                        'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                        route().current('users.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    ]"
-                    @mouseenter="handleMouseEnter($event, 'Users')"
-                    @mouseleave="handleMouseLeave"
-                >
-                    <UserGroupIcon
+                    <!-- Users -->
+                    <Link
+                        v-if="hasPermission('users.view')"
+                        :href="route('users.index')"
                         :class="[
-                            'w-5 h-5 flex-shrink-0 transition-colors',
-                             route().current('users.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                            isCollapsed ? 'mx-auto' : 'mr-3'
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('users.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                    />
-                    <span v-if="!isCollapsed" class="font-medium text-sm">Users</span>
-                </Link>
+                        @mouseenter="handleMouseEnter($event, 'Users')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <UserGroupIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                 route().current('users.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Users</span>
+                    </Link>
 
-                <!-- Companies -->
-                <Link
-                    :href="route('companies.index')"
-                    :class="[
-                        'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                        route().current('companies.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    ]"
-                    @mouseenter="handleMouseEnter($event, 'Companies')"
-                    @mouseleave="handleMouseLeave"
-                >
-                    <BuildingOfficeIcon
+                    <!-- Companies -->
+                    <Link
+                        v-if="hasPermission('companies.view')"
+                        :href="route('companies.index')"
                         :class="[
-                            'w-5 h-5 flex-shrink-0 transition-colors',
-                             route().current('companies.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                            isCollapsed ? 'mx-auto' : 'mr-3'
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('companies.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                    />
-                    <span v-if="!isCollapsed" class="font-medium text-sm">Companies</span>
-                </Link>
+                        @mouseenter="handleMouseEnter($event, 'Companies')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <BuildingOfficeIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                 route().current('companies.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Companies</span>
+                    </Link>
 
-                <!-- Roles -->
-                <Link
-                    :href="route('roles.index')"
-                    :class="[
-                        'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                         route().current('roles.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    ]"
-                    @mouseenter="handleMouseEnter($event, 'Roles & Permissions')"
-                    @mouseleave="handleMouseLeave"
-                >
-                    <ShieldCheckIcon
+                    <!-- Roles -->
+                    <Link
+                        v-if="hasPermission('roles.view')"
+                        :href="route('roles.index')"
                         :class="[
-                            'w-5 h-5 flex-shrink-0 transition-colors',
-                             route().current('roles.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                            isCollapsed ? 'mx-auto' : 'mr-3'
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                             route().current('roles.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                    />
-                    <span v-if="!isCollapsed" class="font-medium text-sm">Roles & Permissions</span>
-                </Link>
+                        @mouseenter="handleMouseEnter($event, 'Roles & Permissions')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ShieldCheckIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                 route().current('roles.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Roles & Permissions</span>
+                    </Link>
+                </template>
 
-                 <!-- Placeholder for Future Modules (Visual Only for now as per Blueprint) -->
                  <!-- Project & Inventory -->
-                 <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Project & Inventory</p>
-                </div>
-                 <div v-else class="my-4 border-t border-slate-800"></div>
+                 <template v-if="hasPermission('projects.view')">
+                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Project & Inventory</p>
+                    </div>
+                    <div v-else class="my-4 border-t border-slate-800"></div>
 
-                 <button 
-                    class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
-                    @mouseenter="handleMouseEnter($event, 'Projects (Coming Soon)')"
-                    @mouseleave="handleMouseLeave"
-                 >
-                     <BuildingOfficeIcon :class="['w-5 h-5 flex-shrink-0', isCollapsed ? 'mx-auto' : 'mr-3']" />
-                     <span v-if="!isCollapsed" class="font-medium text-sm">Projects</span>
-                 </button>
+                    <Link
+                        :href="route('projects.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('projects.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Projects')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <BuildingOfficeIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('projects.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Projects</span>
+                    </Link>
+
+                    <!-- Units -->
+                    <Link
+                        v-if="hasPermission('units.view')"
+                        :href="route('units.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('units.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Units / Lots')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <MapIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('units.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Units / Lots</span>
+                    </Link>
+
+                    <!-- Price Lists -->
+                    <Link
+                        v-if="hasPermission('price_lists.view')"
+                        :href="route('price-lists.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('price-lists.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Price Lists')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <CurrencyDollarIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('price-lists.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Price Lists</span>
+                    </Link>
+                 </template>
 
                  <!-- Sales -->
-                 <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sales</p>
-                </div>
-                 <div v-else class="my-4 border-t border-slate-800"></div>
-                 
-                 <button 
-                    class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
-                    @mouseenter="handleMouseEnter($event, 'Reservations (Coming Soon)')"
-                    @mouseleave="handleMouseLeave"
-                 >
-                     <ClipboardDocumentListIcon :class="['w-5 h-5 flex-shrink-0', isCollapsed ? 'mx-auto' : 'mr-3']" />
-                     <span v-if="!isCollapsed" class="font-medium text-sm">Reservations</span>
-                 </button>
+                 <template v-if="hasPermission('reservations.view')">
+                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sales</p>
+                    </div>
+                    <div v-else class="my-4 border-t border-slate-800"></div>
+                    
+                    <button 
+                        class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
+                        @mouseenter="handleMouseEnter($event, 'Reservations (Coming Soon)')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ClipboardDocumentListIcon :class="['w-5 h-5 flex-shrink-0', isCollapsed ? 'mx-auto' : 'mr-3']" />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Reservations</span>
+                    </button>
+                 </template>
 
                  <!-- Finance -->
-                 <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Finance</p>
-                </div>
-                 <div v-else class="my-4 border-t border-slate-800"></div>
+                 <template v-if="hasPermission('collections.view')">
+                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Finance</p>
+                    </div>
+                    <div v-else class="my-4 border-t border-slate-800"></div>
 
-                  <button 
-                    class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
-                    @mouseenter="handleMouseEnter($event, 'Collections (Coming Soon)')"
-                    @mouseleave="handleMouseLeave"
-                  >
-                     <CurrencyDollarIcon :class="['w-5 h-5 flex-shrink-0', isCollapsed ? 'mx-auto' : 'mr-3']" />
-                     <span v-if="!isCollapsed" class="font-medium text-sm">Collections</span>
-                 </button>
+                    <button 
+                        class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
+                        @mouseenter="handleMouseEnter($event, 'Collections (Coming Soon)')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <CurrencyDollarIcon :class="['w-5 h-5 flex-shrink-0', isCollapsed ? 'mx-auto' : 'mr-3']" />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Collections</span>
+                    </button>
+                 </template>
 
             </nav>
 

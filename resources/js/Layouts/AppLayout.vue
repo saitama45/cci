@@ -14,6 +14,13 @@ import {
     XMarkIcon
 } from '@heroicons/vue/24/outline';
 
+const props = defineProps({
+    fluid: {
+        type: Boolean,
+        default: false
+    }
+});
+
 const page = usePage();
 const user = computed(() => page.props.auth?.user || {});
 
@@ -189,7 +196,7 @@ onUnmounted(() => {
                     </div>
                     
                     <!-- Content (Slot) -->
-                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div :class="[fluid ? 'w-full px-0' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8']">
                          <slot />
                     </div>
                 </div>
