@@ -69,10 +69,86 @@ export function useInputRestriction() {
         return `${year}-${month}-${day}`;
     };
 
+    /**
+     * Restrict input to letters only (a-zA-Z).
+     * Optionally force uppercase.
+     */
+    const restrictLetters = (value, forceUppercase = true) => {
+        if (!value) return '';
+        // Strip everything that is NOT a letter (a-z, A-Z) or a space
+        let val = value.toString().replace(/[^a-zA-Z\s]/g, '');
+        return forceUppercase ? val.toUpperCase() : val;
+    };
+
+    /**
+     * Format contact number: 09XX XXX XXXX (13 chars max)
+     */
+    const formatContactNo = (value) => {
+        if (!value) return '';
+        // Strip non-digits
+        let digits = value.toString().replace(/\D/g, '');
+        // Limit to 11 digits
+        digits = digits.substring(0, 11);
+        
+        let formatted = '';
+        if (digits.length > 0) {
+            formatted += digits.substring(0, 4);
+            if (digits.length > 4) {
+                formatted += ' ' + digits.substring(4, 7);
+                if (digits.length > 7) {
+                    formatted += ' ' + digits.substring(7, 11);
+                }
+            }
+        }
+        return formatted;
+    };
+
+    /**
+     * Format TIN No: XXX-XXX-XXX-XXX (15 chars max)
+     */
+    const formatTinNo = (value) => {
+        if (!value) return '';
+        // Strip non-digits
+        let digits = value.toString().replace(/\D/g, '');
+        // Limit to 12 digits
+        digits = digits.substring(0, 12);
+        
+        let formatted = '';
+        if (digits.length > 0) {
+            formatted += digits.substring(0, 3);
+            if (digits.length > 3) {
+                formatted += '-' + digits.substring(3, 6);
+                if (digits.length > 6) {
+                    formatted += '-' + digits.substring(6, 9);
+                    if (digits.length > 9) {
+                        formatted += '-' + digits.substring(9, 12);
+                    }
+                }
+            }
+        }
+        return formatted;
+    };
+
+    const validateFileSize = (file, maxSizeMB = 50) => {
+        if (!file) return true;
+        const maxSizeBytes = maxSizeMB * 1024 * 1024;
+        if (file.size > maxSizeBytes) {
+            return {
+                valid: false,
+                message: `File size exceeds the ${maxSizeMB}MB limit.`
+            };
+        }
+        return { valid: true };
+    };
+
     return {
         restrictNumeric,
         restrictAlphanumeric,
+        restrictLetters,
         isValidEmail,
-        formatDateForInput
+        formatDateForInput,
+        formatContactNo,
+        formatTinNo,
+        validateFileSize
     };
 }

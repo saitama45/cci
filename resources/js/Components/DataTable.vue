@@ -77,18 +77,18 @@
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <!-- Per Page Selector -->
                     <div class="flex items-center space-x-2 text-sm">
-                        <span class="text-gray-700">Show</span>
+                        <span class="text-slate-500 font-medium">Show</span>
                         <select
                             :value="perPage"
                             @change="changePerPage(parseInt($event.target.value))"
-                            class="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            class="border border-slate-200 rounded-xl pl-3 pr-10 py-1.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
                         >
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50">50</option>
                             <option value="100">100</option>
                         </select>
-                        <span class="text-gray-700">per page</span>
+                        <span class="text-slate-500 font-medium">per page</span>
                     </div>
 
                     <!-- Page Navigation -->
@@ -97,7 +97,7 @@
                         <button
                             @click="goToPage(currentPage - 1)"
                             :disabled="currentPage <= 1"
-                            class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            class="px-4 py-1.5 text-sm font-bold border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600"
                         >
                             Previous
                         </button>
@@ -108,22 +108,22 @@
                                 v-if="page !== '...'"
                                 @click="goToPage(page)"
                                 :class="[
-                                    'px-3 py-1 text-sm border rounded-md transition-colors',
+                                    'min-w-[36px] h-9 flex items-center justify-center text-sm font-bold rounded-xl transition-all',
                                     page === currentPage
-                                        ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'border-gray-300 hover:bg-gray-50'
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                        : 'text-slate-500 hover:bg-slate-50 border border-transparent hover:border-slate-200'
                                 ]"
                             >
                                 {{ page }}
                             </button>
-                            <span v-else class="px-2 py-1 text-sm text-gray-500">...</span>
+                            <span v-else class="px-2 py-1 text-sm text-slate-400 font-bold">...</span>
                         </template>
 
                         <!-- Next button -->
                         <button
                             @click="goToPage(currentPage + 1)"
                             :disabled="currentPage >= lastPage"
-                            class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            class="px-4 py-1.5 text-sm font-bold border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600"
                         >
                             Next
                         </button>
@@ -152,13 +152,34 @@ const props = defineProps({
         default: 'Get started by creating a new record.'
     },
     // Pagination props
-    search: String,
-    data: Array,
-    currentPage: Number,
-    lastPage: Number,
-    perPage: Number,
-    showingText: String,
-    isLoading: Boolean
+    search: {
+        type: String,
+        default: ''
+    },
+    data: {
+        type: Array,
+        default: () => []
+    },
+    currentPage: {
+        type: Number,
+        default: 1
+    },
+    lastPage: {
+        type: Number,
+        default: 1
+    },
+    perPage: {
+        type: Number,
+        default: 10
+    },
+    showingText: {
+        type: String,
+        default: ''
+    },
+    isLoading: {
+        type: Boolean,
+        default: false
+    }
 })
 
 const emit = defineEmits(['update:search', 'goToPage', 'changePerPage'])

@@ -40,6 +40,14 @@ class RoleService
             'label' => 'Price Lists',
             'permissions' => ['view', 'create', 'edit', 'delete']
         ],
+        'customers' => [
+            'label' => 'Customers',
+            'permissions' => ['view', 'show', 'create', 'edit', 'delete', 'export', 'upload_documents', 'delete_documents']
+        ],
+        'document_requirements' => [
+            'label' => 'Document Requirements',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
         'reservations' => [
             'label' => 'Reservations',
             'permissions' => ['view']
@@ -53,7 +61,7 @@ class RoleService
     /**
      * Standard sort order for permissions
      */
-    public static array $permissionOrder = ['view', 'create', 'edit', 'delete', 'export', 'approve', 'cancel'];
+    public static array $permissionOrder = ['view', 'show', 'create', 'edit', 'delete', 'export', 'approve', 'cancel'];
 
     /**
      * Get all roles with their permissions

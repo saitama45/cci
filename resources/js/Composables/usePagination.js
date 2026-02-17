@@ -18,14 +18,17 @@ export function usePagination(initialData = {}, routeName = '', extraParams = {}
     })
 
     const updateData = (newData) => {
-        if (newData) {
-            data.value = newData.data || []
-            total.value = newData.total || 0
-            from.value = newData.from || 0
-            to.value = newData.to || 0
-            currentPage.value = newData.current_page || 1
-            lastPage.value = newData.last_page || 1
-        }
+        if (!newData) return
+
+        // HANDLE BOTH LARAVEL PAGINATION OBJECT AND DIRECT DATA ARRAY
+        const paginated = newData.data ? newData : { data: newData }
+        
+        data.value = paginated.data || []
+        total.value = paginated.total || data.value.length
+        from.value = paginated.from || (data.value.length > 0 ? 1 : 0)
+        to.value = paginated.to || data.value.length
+        currentPage.value = paginated.current_page || 1
+        lastPage.value = paginated.last_page || 1
     }
 
     const performSearch = (url = null, additionalParams = {}) => {
@@ -44,7 +47,10 @@ export function usePagination(initialData = {}, routeName = '', extraParams = {}
             preserveState: true,
             preserveScroll: true,
             onSuccess: (page) => {
-                const responseData = page.props[routeName.split('.')[0]] || page.props.data
+                // TRY TO FIND DATA IN PROPS BASED ON ROUTE NAME OR 'data'
+                const propKey = routeName.split('.')[0]
+                const responseData = page.props[propKey] || page.props.data
+                
                 if (responseData) {
                     updateData(responseData)
                 }

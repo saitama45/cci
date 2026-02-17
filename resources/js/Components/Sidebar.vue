@@ -9,8 +9,10 @@ import {
     ShieldCheckIcon,
     BuildingOfficeIcon,
     ClipboardDocumentListIcon,
+    ClipboardDocumentCheckIcon,
     CurrencyDollarIcon,
-    MapIcon
+    MapIcon,
+    UserIcon
 } from '@heroicons/vue/24/outline';
 import { usePermission } from '@/Composables/usePermission';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
@@ -121,7 +123,7 @@ const handleMouseLeave = () => {
                 </Link>
 
                 <!-- Module: Admin & Security -->
-                <template v-if="hasAnyPermission(['users.view', 'companies.view', 'roles.view'])">
+                <template v-if="hasAnyPermission(['users.view', 'companies.view', 'roles.view', 'document_requirements.view'])">
                     <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Administration</p>
                     </div>
@@ -195,6 +197,29 @@ const handleMouseLeave = () => {
                             ]"
                         />
                         <span v-if="!isCollapsed" class="font-medium text-sm">Roles & Permissions</span>
+                    </Link>
+
+                    <!-- Document Checklist Config -->
+                    <Link
+                        v-if="hasPermission('document_requirements.view')"
+                        :href="route('document-requirements.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                             route().current('document-requirements.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Document Checklist')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ClipboardDocumentCheckIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                 route().current('document-requirements.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Document Checklist</span>
                     </Link>
                 </template>
 
@@ -275,13 +300,37 @@ const handleMouseLeave = () => {
                  </template>
 
                  <!-- Sales -->
-                 <template v-if="hasPermission('reservations.view')">
+                 <template v-if="hasAnyPermission(['customers.view', 'reservations.view'])">
                     <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sales</p>
                     </div>
                     <div v-else class="my-4 border-t border-slate-800"></div>
+
+                    <!-- Customers -->
+                    <Link
+                        v-if="hasPermission('customers.view')"
+                        :href="route('customers.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('customers.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Customers')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <UserIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('customers.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Customers</span>
+                    </Link>
                     
                     <button 
+                        v-if="hasPermission('reservations.view')"
                         class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
                         @mouseenter="handleMouseEnter($event, 'Reservations (Coming Soon)')"
                         @mouseleave="handleMouseLeave"
