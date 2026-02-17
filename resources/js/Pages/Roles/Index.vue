@@ -169,7 +169,7 @@
                             <div class="flex items-center justify-between mb-4">
                                 <label class="block text-sm font-bold text-slate-700 flex items-center">
                                     <LockClosedIcon class="w-4 h-4 mr-2 text-slate-400" />
-                                    Functional Permissions Scope
+                                    Module Management
                                 </label>
                                 <label class="flex items-center cursor-pointer group">
                                     <input type="checkbox" 
@@ -399,7 +399,7 @@ const deleteRole = async (role) => {
 }
 
 const sortPermissions = (permissions) => {
-    const order = ['view', 'create', 'edit', 'delete'];
+    const order = ['view', 'create', 'edit', 'delete', 'export', 'approve', 'cancel'];
     return permissions.sort((a, b) => {
         const aAction = a.name.split('.')[1];
         const bAction = b.name.split('.')[1];
@@ -419,13 +419,16 @@ const formatPermissionName = (name) => {
     
     const action = parts[1];
     const mapping = {
-        'view': 'Full Access: View Records',
-        'create': 'Authority: Create New Entries',
-        'edit': 'Authority: Update Existing Data',
-        'delete': 'Critical: Administrative Deletion'
+        'view': 'View',
+        'create': 'Create',
+        'edit': 'Edit',
+        'delete': 'Delete',
+        'export': 'Export',
+        'approve': 'Approve',
+        'cancel': 'Cancel'
     };
     
-    return mapping[action] || name;
+    return mapping[action] || action.charAt(0).toUpperCase() + action.slice(1);
 }
 </script>
 

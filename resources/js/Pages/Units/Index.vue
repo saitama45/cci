@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import DataTable from '@/Components/DataTable.vue';
 import { useConfirm } from '@/Composables/useConfirm';
@@ -8,6 +8,7 @@ import { useErrorHandler } from '@/Composables/useErrorHandler';
 import { useToast } from '@/Composables/useToast';
 import { usePagination } from '@/Composables/usePagination';
 import { usePermission } from '@/Composables/usePermission';
+import { useInputRestriction } from '@/Composables/useInputRestriction';
 import { 
     MapIcon,
     PencilSquareIcon, 
@@ -29,6 +30,26 @@ const { confirm } = useConfirm();
 const { post, put, destroy } = useErrorHandler();
 const { showSuccess, showError } = useToast();
 const { hasPermission } = usePermission();
+const { restrictNumeric } = useInputRestriction();
+
+const handleNumericInput = (e, form, field, allowDecimal = true) => {
+    const input = e.target;
+    const start = input.selectionStart;
+    const oldVal = input.value;
+    
+    // Apply restriction: no letters, no emojis, no negative values
+    const restricted = restrictNumeric(oldVal, allowDecimal, false);
+    
+    input.value = restricted;
+    form[field] = restricted;
+    
+    nextTick(() => {
+        const newLen = restricted.length;
+        const oldLen = oldVal.length;
+        const newPos = Math.max(0, start + (newLen - oldLen));
+        input.setSelectionRange(newPos, newPos);
+    });
+};
 
 const pagination = usePagination(props.units, 'units.index');
 
@@ -61,6 +82,11 @@ const editForm = useForm({
 });
 
 const createUnit = () => {
+    // Sanitize numeric fields before submission
+    createForm.block_num = restrictNumeric(createForm.block_num, false, false);
+    createForm.lot_num = restrictNumeric(createForm.lot_num, false, false);
+    createForm.sqm_area = restrictNumeric(createForm.sqm_area, true, false);
+
     post(route('units.store'), createForm.data(), {
         onSuccess: () => {
             showCreateModal.value = false;
@@ -87,6 +113,11 @@ const editUnit = (unit) => {
 };
 
 const updateUnit = () => {
+    // Sanitize numeric fields before submission
+    editForm.block_num = restrictNumeric(editForm.block_num, false, false);
+    editForm.lot_num = restrictNumeric(editForm.lot_num, false, false);
+    editForm.sqm_area = restrictNumeric(editForm.sqm_area, true, false);
+
     put(route('units.update', editingUnit.value.id), editForm.data(), {
         onSuccess: () => {
             showEditModal.value = false;
@@ -271,11 +302,23 @@ const statusColors = {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Block No.</label>
-                            <input v-model="createForm.block_num" type="number" required min="1" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="createForm.block_num" 
+                                @input="handleNumericInput($event, createForm, 'block_num', false)"
+                                type="text" 
+                                required 
+                                class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Lot No.</label>
-                            <input v-model="createForm.lot_num" type="number" required min="1" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="createForm.lot_num" 
+                                @input="handleNumericInput($event, createForm, 'lot_num', false)"
+                                type="text" 
+                                required 
+                                class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                     </div>
                     
@@ -287,7 +330,13 @@ const statusColors = {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Area (sqm)</label>
-                            <input v-model="createForm.sqm_area" type="number" step="0.01" required min="1" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="createForm.sqm_area" 
+                                @input="handleNumericInput($event, createForm, 'sqm_area', true)"
+                                type="text" 
+                                required 
+                                class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Status</label>
@@ -335,11 +384,23 @@ const statusColors = {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Block No.</label>
-                            <input v-model="editForm.block_num" type="number" required min="1" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="editForm.block_num" 
+                                @input="handleNumericInput($event, editForm, 'block_num', false)"
+                                type="text" 
+                                required 
+                                class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Lot No.</label>
-                            <input v-model="editForm.lot_num" type="number" required min="1" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="editForm.lot_num" 
+                                @input="handleNumericInput($event, editForm, 'lot_num', false)"
+                                type="text" 
+                                required 
+                                class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                     </div>
                     
@@ -351,7 +412,13 @@ const statusColors = {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Area (sqm)</label>
-                            <input v-model="editForm.sqm_area" type="number" step="0.01" required min="1" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="editForm.sqm_area" 
+                                @input="handleNumericInput($event, editForm, 'sqm_area', true)"
+                                type="text" 
+                                required 
+                                class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Status</label>

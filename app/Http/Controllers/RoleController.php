@@ -7,6 +7,7 @@ use Inertia\Inertia;
 use App\Models\Role;
 use App\Models\Company;
 use Spatie\Permission\Models\Permission;
+use App\Http\Services\RoleService;
 
 class RoleController extends Controller
 {
@@ -19,9 +20,7 @@ class RoleController extends Controller
         }
         
         $roles = $query->paginate($request->get('per_page', 10))->withQueryString();
-        $permissions = Permission::select('id', 'name')->get()->groupBy(function($permission) {
-            return explode('.', $permission->name)[0];
-        });
+        $permissions = RoleService::getPermissionsByCategory();
         $companies = Company::where('is_active', true)->select('id', 'name')->orderBy('name')->get();
 
         return Inertia::render('Roles/Index', [

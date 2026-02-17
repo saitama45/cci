@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import DataTable from '@/Components/DataTable.vue';
 import { useConfirm } from '@/Composables/useConfirm';
@@ -8,6 +8,7 @@ import { useErrorHandler } from '@/Composables/useErrorHandler';
 import { useToast } from '@/Composables/useToast';
 import { usePagination } from '@/Composables/usePagination';
 import { usePermission } from '@/Composables/usePermission';
+import { useInputRestriction } from '@/Composables/useInputRestriction';
 import { 
     UserPlusIcon, 
     PencilSquareIcon, 
@@ -34,6 +35,25 @@ const { confirm } = useConfirm();
 const { post, put, destroy } = useErrorHandler();
 const { showSuccess, showError } = useToast();
 const { hasPermission } = usePermission();
+const { isValidEmail, restrictAlphanumeric } = useInputRestriction();
+
+const isCreateEmailValid = computed(() => {
+    if (!createForm.email) return true;
+    return isValidEmail(createForm.email);
+});
+
+const isEditEmailValid = computed(() => {
+    if (!editForm.email) return true;
+    return isValidEmail(editForm.email);
+});
+
+const handleAlphanumericInput = (e, form, field) => {
+    const input = e.target;
+    // We allow spaces for names, departments, and positions
+    const restricted = input.value.replace(/[^a-zA-Z0-9\s]/g, '');
+    input.value = restricted;
+    form[field] = restricted;
+};
 
 const pagination = usePagination(props.users, 'users.index');
 
@@ -277,16 +297,22 @@ const updatePassword = () => {
                             <label class="block text-sm font-bold text-slate-700 mb-1">Full Name</label>
                             <div class="relative">
                                 <UserCircleIcon class="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-                                <input v-model="createForm.name" type="text" required placeholder="Ex. Juan Dela Cruz" class="block w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                                <input 
+                                    :value="createForm.name" 
+                                    @input="handleAlphanumericInput($event, createForm, 'name')"
+                                    type="text" required placeholder="Ex. Juan Dela Cruz" class="block w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                             </div>
                         </div>
                         
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Email Address</label>
                             <div class="relative">
-                                <EnvelopeIcon class="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-                                <input v-model="createForm.email" type="email" required placeholder="corporate@cci.com" class="block w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                                <EnvelopeIcon :class="['absolute left-3 top-2.5 h-5 w-5 transition-colors', createForm.email && !isCreateEmailValid ? 'text-red-500' : 'text-slate-400']" />
+                                <input v-model="createForm.email" type="email" required placeholder="corporate@cci.com" 
+                                    :class="['block w-full pl-10 pr-4 py-2.5 bg-slate-50 border rounded-xl focus:ring-2 transition-all', 
+                                    createForm.email && !isCreateEmailValid ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500']">
                             </div>
+                            <p v-if="createForm.email && !isCreateEmailValid" class="text-[10px] text-red-500 mt-1.5 font-bold animate-in fade-in slide-in-from-top-1">Please enter a valid corporate email format.</p>
                         </div>
 
                          <div>
@@ -309,13 +335,19 @@ const updatePassword = () => {
                             <label class="block text-sm font-bold text-slate-700 mb-1">Department</label>
                              <div class="relative">
                                 <BuildingOfficeIcon class="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-                                <input v-model="createForm.department" type="text" placeholder="Ex. Accounting" class="block w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                                <input 
+                                    :value="createForm.department" 
+                                    @input="handleAlphanumericInput($event, createForm, 'department')"
+                                    type="text" placeholder="Ex. Accounting" class="block w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                             </div>
                         </div>
 
                          <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Position</label>
-                            <input v-model="createForm.position" type="text" placeholder="Ex. Senior Manager" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="createForm.position" 
+                                @input="handleAlphanumericInput($event, createForm, 'position')"
+                                type="text" placeholder="Ex. Senior Manager" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                         </div>
                     </div>
 
@@ -341,12 +373,18 @@ const updatePassword = () => {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div class="md:col-span-2">
                             <label class="block text-sm font-bold text-slate-700 mb-1">Full Name</label>
-                            <input v-model="editForm.name" type="text" required class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="editForm.name" 
+                                @input="handleAlphanumericInput($event, editForm, 'name')"
+                                type="text" required class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                         </div>
                         
                         <div class="md:col-span-2">
                             <label class="block text-sm font-bold text-slate-700 mb-1">Email Address</label>
-                            <input v-model="editForm.email" type="email" required class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input v-model="editForm.email" type="email" required 
+                                :class="['block w-full px-4 py-2.5 bg-slate-50 border rounded-xl focus:ring-2 transition-all', 
+                                editForm.email && !isEditEmailValid ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500']">
+                            <p v-if="editForm.email && !isEditEmailValid" class="text-[10px] text-red-500 mt-1.5 font-bold">Please enter a valid corporate email format.</p>
                         </div>
                         
                         <div>
@@ -358,7 +396,10 @@ const updatePassword = () => {
                         
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">Department</label>
-                            <input v-model="editForm.department" type="text" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="editForm.department" 
+                                @input="handleAlphanumericInput($event, editForm, 'department')"
+                                type="text" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                         </div>
                     </div>
 

@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import DataTable from '@/Components/DataTable.vue';
@@ -9,6 +9,7 @@ import { useErrorHandler } from '@/Composables/useErrorHandler';
 import { useToast } from '@/Composables/useToast';
 import { usePagination } from '@/Composables/usePagination';
 import { usePermission } from '@/Composables/usePermission';
+import { useInputRestriction } from '@/Composables/useInputRestriction';
 import { 
     CurrencyDollarIcon,
     PencilSquareIcon, 
@@ -30,10 +31,63 @@ const availableUnits = ref([]);
 const selectedProjectId = ref('');
 const isFetchingUnits = ref(false);
 
+const createPriceDisplay = ref('');
+const editPriceDisplay = ref('');
+
+const formatPriceInput = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    
+    // Apply centralized numeric restriction (positive only)
+    let cleanValue = restrictNumeric(value, true, false);
+    
+    if (!cleanValue) return '';
+
+    const [integerPart, decimalPart] = cleanValue.split('.');
+    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    
+    // Limit to 2 decimal places if present
+    let formattedDecimal = decimalPart;
+    if (decimalPart && decimalPart.length > 2) {
+        formattedDecimal = decimalPart.substring(0, 2);
+    }
+    
+    return formattedDecimal !== undefined ? `${formattedInteger}.${formattedDecimal}` : formattedInteger;
+};
+
+const unformatPriceInput = (value) => {
+    if (!value) return '';
+    return value.toString().replace(/,/g, '');
+};
+
+const handlePriceInput = (e, form, displayRef) => {
+    const input = e.target;
+    const start = input.selectionStart;
+    const oldVal = input.value;
+    
+    // Apply restriction
+    const formatted = formatPriceInput(oldVal);
+    
+    // Explicitly update the input value to force restriction in the DOM
+    // This is necessary because if the formatted value is same as displayRef, 
+    // Vue might skip the DOM update.
+    input.value = formatted;
+    displayRef.value = formatted;
+    form.price_per_sqm = unformatPriceInput(formatted);
+    
+    nextTick(() => {
+        // Recalculate position
+        const newLen = formatted.length;
+        const oldLen = oldVal.length;
+        const newPos = Math.max(0, start + (newLen - oldLen));
+        input.setSelectionRange(newPos, newPos);
+    });
+};
+
 const { confirm } = useConfirm();
 const { post, put, destroy } = useErrorHandler();
 const { showSuccess, showError } = useToast();
 const { hasPermission } = usePermission();
+const { restrictNumeric, formatDateForInput } = useInputRestriction();
 
 const pagination = usePagination(props.priceLists, 'price-lists.index');
 
@@ -81,10 +135,14 @@ watch(selectedProjectId, () => {
 });
 
 const createPriceList = () => {
+    // Final check/restriction before submission
+    createForm.price_per_sqm = restrictNumeric(createForm.price_per_sqm, true, false);
+    
     post(route('price-lists.store'), createForm.data(), {
         onSuccess: () => {
             showCreateModal.value = false;
             createForm.reset();
+            createPriceDisplay.value = '';
             selectedProjectId.value = '';
             availableUnits.value = [];
             showSuccess('Price list created successfully')
@@ -99,15 +157,20 @@ const createPriceList = () => {
 const editPriceList = (priceList) => {
     editingPriceList.value = priceList;
     editForm.price_per_sqm = priceList.price_per_sqm;
-    editForm.effective_date = priceList.effective_date;
+    editPriceDisplay.value = formatPriceInput(priceList.price_per_sqm);
+    editForm.effective_date = formatDateForInput(priceList.effective_date);
     showEditModal.value = true;
 };
 
 const updatePriceList = () => {
+    // Final check/restriction before submission
+    editForm.price_per_sqm = restrictNumeric(editForm.price_per_sqm, true, false);
+    
     put(route('price-lists.update', editingPriceList.value.id), editForm.data(), {
         onSuccess: () => {
             showEditModal.value = false;
             editForm.reset();
+            editPriceDisplay.value = '';
             editingPriceList.value = null;
             showSuccess('Price list updated successfully')
         },
@@ -300,7 +363,14 @@ const formatCurrency = (value) => {
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <span class="text-slate-500 sm:text-sm">₱</span>
                             </div>
-                            <input v-model="createForm.price_per_sqm" type="number" step="0.01" min="0" required class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="createPriceDisplay"
+                                @input="handlePriceInput($event, createForm, createPriceDisplay)"
+                                type="text" 
+                                placeholder="0.00"
+                                required 
+                                class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                     </div>
 
@@ -342,7 +412,14 @@ const formatCurrency = (value) => {
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <span class="text-slate-500 sm:text-sm">₱</span>
                             </div>
-                            <input v-model="editForm.price_per_sqm" type="number" step="0.01" min="0" required class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <input 
+                                :value="editPriceDisplay"
+                                @input="handlePriceInput($event, editForm, editPriceDisplay)"
+                                type="text" 
+                                placeholder="0.00"
+                                required 
+                                class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
                         </div>
                     </div>
 

@@ -8,6 +8,54 @@ use Spatie\Permission\Models\Permission;
 class RoleService
 {
     /**
+     * Centralized module configuration
+     * Each module contains a label and standard permissions.
+     */
+    public static array $modules = [
+        'dashboard' => [
+            'label' => 'Dashboard',
+            'permissions' => ['view']
+        ],
+        'users' => [
+            'label' => 'Users',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
+        'roles' => [
+            'label' => 'Roles & Permissions',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
+        'companies' => [
+            'label' => 'Companies',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
+        'projects' => [
+            'label' => 'Projects',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
+        'units' => [
+            'label' => 'Units / Lots',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
+        'price_lists' => [
+            'label' => 'Price Lists',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
+        'reservations' => [
+            'label' => 'Reservations',
+            'permissions' => ['view']
+        ],
+        'collections' => [
+            'label' => 'Collections',
+            'permissions' => ['view']
+        ],
+    ];
+
+    /**
+     * Standard sort order for permissions
+     */
+    public static array $permissionOrder = ['view', 'create', 'edit', 'delete', 'export', 'approve', 'cancel'];
+
+    /**
      * Get all roles with their permissions
      */
     public static function getAllRoles()
@@ -24,18 +72,53 @@ class RoleService
     }
 
     /**
-     * Get permissions grouped by category
+     * Get permissions grouped by category with proper labels and sorting
      */
     public static function getPermissionsByCategory()
     {
         $permissions = Permission::all();
         $grouped = [];
-        
-        foreach ($permissions as $permission) {
-            $category = explode('.', $permission->name)[0];
-            $grouped[ucfirst($category)][] = $permission;
+        $processedIds = [];
+
+        foreach (self::$modules as $key => $module) {
+            $modulePermissions = $permissions->filter(function ($permission) use ($key) {
+                return explode('.', $permission->name)[0] === $key;
+            });
+
+            if ($modulePermissions->isNotEmpty()) {
+                foreach ($modulePermissions as $p) {
+                    $processedIds[] = $p->id;
+                }
+
+                // Sort permissions based on self::$permissionOrder
+                $sortedPermissions = $modulePermissions->sort(function ($a, $b) {
+                    $actionA = explode('.', $a->name)[1] ?? '';
+                    $actionB = explode('.', $b->name)[1] ?? '';
+                    
+                    $indexA = array_search($actionA, self::$permissionOrder);
+                    $indexB = array_search($actionB, self::$permissionOrder);
+
+                    // If not in order list, push to end
+                    if ($indexA === false && $indexB === false) return strcmp($actionA, $actionB);
+                    if ($indexA === false) return 1;
+                    if ($indexB === false) return -1;
+                    
+                    return $indexA - $indexB;
+                });
+
+                $grouped[$module['label']] = $sortedPermissions->values()->toArray();
+            }
         }
-        
+
+        // Handle permissions that don't belong to any defined module
+        $remainingPermissions = $permissions->reject(function ($permission) use ($processedIds) {
+            return in_array($permission->id, $processedIds);
+        });
+
+        if ($remainingPermissions->isNotEmpty()) {
+            $grouped['Other'] = $remainingPermissions->values()->toArray();
+        }
+
         return $grouped;
     }
 
