@@ -199,13 +199,14 @@ const handleMouseLeave = () => {
                 </template>
 
                  <!-- Project & Inventory -->
-                 <template v-if="hasPermission('projects.view')">
+                 <template v-if="hasAnyPermission(['projects.view', 'units.view', 'price_lists.view'])">
                     <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Project & Inventory</p>
                     </div>
                     <div v-else class="my-4 border-t border-slate-800"></div>
 
                     <Link
+                        v-if="hasPermission('projects.view')"
                         :href="route('projects.index')"
                         :class="[
                             'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',

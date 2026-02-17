@@ -8,9 +8,20 @@ use App\Models\Role;
 use App\Models\Company;
 use Spatie\Permission\Models\Permission;
 use App\Http\Services\RoleService;
+use Illuminate\Support\Facades\Cache;
 
 class RoleController extends Controller
 {
+    /**
+     * Clear permission cache for all users assigned to this role
+     */
+    private function clearUserPermissionsCache($role)
+    {
+        foreach ($role->users as $user) {
+            Cache::forget('user_permissions_' . $user->id);
+        }
+    }
+
     public function index(Request $request)
     {
         $query = Role::with(['permissions:id,name', 'companies:id,name']);
@@ -71,6 +82,8 @@ class RoleController extends Controller
             $role->companies()->detach();
         }
 
+        $this->clearUserPermissionsCache($role);
+
         return redirect()->back()->with('success', 'Role updated successfully');
     }
 
@@ -80,6 +93,7 @@ class RoleController extends Controller
             return redirect()->back()->with('error', 'Cannot delete role with assigned users');
         }
 
+        $this->clearUserPermissionsCache($role);
         $role->companies()->detach(); // Clean up pivot table
         $role->delete();
         return redirect()->back()->with('success', 'Role deleted successfully');
