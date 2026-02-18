@@ -50,7 +50,7 @@ class RoleService
         ],
         'reservations' => [
             'label' => 'Reservations',
-            'permissions' => ['view']
+            'permissions' => ['view', 'show', 'create', 'edit', 'delete']
         ],
         'collections' => [
             'label' => 'Collections',

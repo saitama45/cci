@@ -56,10 +56,14 @@ export function useInputRestriction() {
 
     /**
      * Format a date string to YYYY-MM-DD for input[type="date"] compatibility.
+     * Prevents the "one day off" issue caused by timezone shifts.
      */
     const formatDateForInput = (dateString) => {
         if (!dateString) return '';
-        const date = new Date(dateString);
+        
+        // If it's already a Date object, use its components directly to avoid UTC shift
+        const date = dateString instanceof Date ? dateString : new Date(dateString);
+        
         if (isNaN(date.getTime())) return '';
         
         const year = date.getFullYear();
@@ -67,6 +71,21 @@ export function useInputRestriction() {
         const day = String(date.getDate()).padStart(2, '0');
         
         return `${year}-${month}-${day}`;
+    };
+
+    /**
+     * Format date for display (e.g., Feb 18, 2026)
+     */
+    const formatDateDisplay = (dateString) => {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'N/A';
+        
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
     };
 
     /**
@@ -141,14 +160,50 @@ export function useInputRestriction() {
         return { valid: true };
     };
 
+    /**
+     * Format a numeric string with commas for better readability.
+     * Optionally limit decimal places (precision).
+     */
+    const formatNumberWithCommas = (value, precision = 2) => {
+        if (value === null || value === undefined || value === '') return '';
+        
+        // Strip everything except digits and one decimal point
+        let val = value.toString().replace(/[^0-9.]/g, '');
+        
+        let parts = val.split('.');
+        
+        // Format integer part with commas
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        
+        // Handle decimals if precision is specified
+        if (parts.length > 1 && precision !== null) {
+            parts[1] = parts[1].substring(0, precision);
+        }
+        
+        // If it's a raw number without decimal but we want to show it as money
+        // Note: For typing, we only join if dot exists.
+        return parts.join('.');
+    };
+
+    /**
+     * Strip commas from a formatted numeric string.
+     */
+    const stripCommas = (value) => {
+        if (!value) return '';
+        return value.toString().replace(/,/g, '');
+    };
+
     return {
         restrictNumeric,
         restrictAlphanumeric,
         restrictLetters,
         isValidEmail,
         formatDateForInput,
+        formatDateDisplay,
         formatContactNo,
         formatTinNo,
-        validateFileSize
+        validateFileSize,
+        formatNumberWithCommas,
+        stripCommas
     };
 }

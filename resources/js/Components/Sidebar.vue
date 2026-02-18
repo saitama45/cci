@@ -329,15 +329,28 @@ const handleMouseLeave = () => {
                         <span v-if="!isCollapsed" class="font-medium text-sm">Customers</span>
                     </Link>
                     
-                    <button 
+                    <!-- Reservations -->
+                    <Link
                         v-if="hasPermission('reservations.view')"
-                        class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
-                        @mouseenter="handleMouseEnter($event, 'Reservations (Coming Soon)')"
+                        :href="route('reservations.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('reservations.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Reservations')"
                         @mouseleave="handleMouseLeave"
                     >
-                        <ClipboardDocumentListIcon :class="['w-5 h-5 flex-shrink-0', isCollapsed ? 'mx-auto' : 'mr-3']" />
+                        <ClipboardDocumentListIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('reservations.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
                         <span v-if="!isCollapsed" class="font-medium text-sm">Reservations</span>
-                    </button>
+                    </Link>
                  </template>
 
                  <!-- Finance -->
