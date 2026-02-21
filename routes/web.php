@@ -26,8 +26,22 @@ Route::middleware('auth')->group(function () {
         Route::resource('price-lists', \App\Http\Controllers\PriceListController::class);
             Route::resource('customers', CustomerController::class);
             Route::resource('reservations', ReservationController::class);
+            Route::post('reservations/{reservation}/contract', [ReservationController::class, 'contract'])->name('reservations.contract');
+            Route::post('reservations/{reservation}/cancel-accounting', [ReservationController::class, 'cancel'])->name('reservations.cancel-accounting');
             Route::resource('document-requirements', \App\Http\Controllers\DocumentRequirementController::class);
             Route::resource('customer-documents', \App\Http\Controllers\CustomerDocumentController::class)->only(['store', 'destroy']);
+            
+            // Accounting & Finance
+            Route::resource('journal-entries', \App\Http\Controllers\JournalEntryController::class);
+            Route::resource('payments', \App\Http\Controllers\PaymentController::class);
+            Route::resource('chart-of-accounts', \App\Http\Controllers\ChartOfAccountController::class);
+
+            // Accounting Reports
+            Route::get('accounting/trial-balance', [\App\Http\Controllers\AccountingReportController::class, 'trialBalance'])->name('accounting.trial-balance');
+            Route::get('accounting/trial-balance/export', [\App\Http\Controllers\AccountingReportController::class, 'exportTrialBalance'])->name('accounting.trial-balance.export');
+            Route::get('accounting/general-ledger', [\App\Http\Controllers\AccountingReportController::class, 'generalLedger'])->name('accounting.general-ledger');
+            Route::get('accounting/general-ledger/export', [\App\Http\Controllers\AccountingReportController::class, 'exportGeneralLedger'])->name('accounting.general-ledger.export');
+
             Route::get('/api/projects/{project}/units', [\App\Http\Controllers\UnitController::class, 'getUnitsByProject'])->name('api.projects.units'); 
          
      // Moving getUnitsByProject to UnitController might be cleaner, but for now lets stick to the plan or put it in UnitController.

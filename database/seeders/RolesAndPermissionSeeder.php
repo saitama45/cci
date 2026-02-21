@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Models\Company;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Role;
@@ -13,7 +14,17 @@ class RolesAndPermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        // Define permissions from central RoleService
+        // 1. Create Default Company
+        $defaultCompany = Company::firstOrCreate(
+            ['code' => 'CCI'],
+            [
+                'name' => 'City Communities Inc.',
+                'description' => 'Real Estate Property Developer',
+                'is_active' => true,
+            ]
+        );
+
+        // 2. Define permissions from central RoleService
         foreach (RoleService::$modules as $moduleKey => $config) {
             foreach ($config['permissions'] as $action) {
                 $permissionName = "{$moduleKey}.{$action}";
@@ -21,18 +32,18 @@ class RolesAndPermissionSeeder extends Seeder
             }
         }
 
-        // Create roles
+        // 3. Create roles
         $admin = Role::firstOrCreate(['name' => 'Admin']);
         $userRole = Role::firstOrCreate(['name' => 'User']);
 
-        // Assign permissions to roles
+        // 4. Assign permissions to roles
         $admin->syncPermissions(Permission::all());
         
         $userRole->syncPermissions([
             'dashboard.view',
         ]);
 
-        // Create default users
+        // 5. Create default users with company association
         $adminUser = User::firstOrCreate(
             ['email' => 'admin@gmail.com'],
             [
@@ -41,9 +52,15 @@ class RolesAndPermissionSeeder extends Seeder
                 'department' => 'IT',
                 'position' => 'System Administrator',
                 'email_verified_at' => now(),
+                'company_id' => $defaultCompany->id,
             ]
         );
         $adminUser->assignRole('Admin');
+
+        // Force update company_id if user existed but was NULL
+        if (!$adminUser->company_id) {
+            $adminUser->update(['company_id' => $defaultCompany->id]);
+        }
 
         $regularUser = User::firstOrCreate(
             ['email' => 'user@gmail.com'],
@@ -53,12 +70,15 @@ class RolesAndPermissionSeeder extends Seeder
                 'department' => 'Sales',
                 'position' => 'Sales Associate',
                 'email_verified_at' => now(),
+                'company_id' => $defaultCompany->id,
             ]
         );
         $regularUser->assignRole('User');
 
-        $this->command->info('✅ Roles and permissions created successfully!');
-        $this->command->info('  - Admin: admin@gmail.com / admin123');
-        $this->command->info('  - User: user@gmail.com / user123');
+        if (!$regularUser->company_id) {
+            $regularUser->update(['company_id' => $defaultCompany->id]);
+        }
+
+        $this->command->info('✅ Roles, permissions, and default company created successfully!');
     }
 }

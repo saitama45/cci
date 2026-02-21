@@ -6,18 +6,28 @@ use App\Models\Reservation;
 use App\Models\Customer;
 use App\Models\Unit;
 use App\Models\Broker;
+use App\Models\Payment;
+use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class ReservationController extends Controller
 {
+    protected $accountingService;
+
+    public function __construct(AccountingService $accountingService)
+    {
+        $this->accountingService = $accountingService;
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        $query = Reservation::with(['customer', 'unit.project', 'broker']);
+        $query = Reservation::with(['customer', 'unit.project', 'broker', 'payments.journalEntry']);
 
         if ($request->search) {
             $search = $request->search;
@@ -47,6 +57,7 @@ class ReservationController extends Controller
             ]),
             'units' => $units,
             'brokers' => Broker::select('id', 'name')->get(),
+            'payment_methods' => ['Cash', 'Check', 'Bank Transfer', 'GCash/Maya', 'Other'],
             'stats' => [
                 'total' => Reservation::count(),
                 'active' => Reservation::where('expiry_date', '>=', now())->count(),
@@ -68,13 +79,44 @@ class ReservationController extends Controller
             'reservation_date' => 'required|date',
             'expiry_date' => 'nullable|date|after_or_equal:reservation_date',
             'fee' => 'required|numeric|min:0',
+            'payment_method' => 'required|string',
+            'reference_no' => 'nullable|string',
         ]);
 
         DB::transaction(function () use ($validated) {
-            Reservation::create($validated);
+            $reservation = Reservation::create([
+                'customer_id' => $validated['customer_id'],
+                'unit_id' => $validated['unit_id'],
+                'broker_id' => $validated['broker_id'],
+                'reservation_date' => $validated['reservation_date'],
+                'expiry_date' => $validated['expiry_date'],
+                'fee' => $validated['fee'],
+            ]);
             
             // Update unit status to Reserved
             Unit::where('id', $validated['unit_id'])->update(['status' => 'Reserved']);
+
+            // Record Accounting Entry if fee > 0
+            if ($validated['fee'] > 0) {
+                // Determine company_id: Use user's company or default to the first company found
+                $companyId = Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? null);
+                
+                if (!$companyId) {
+                    throw new \Exception("Cannot record payment: No company associated with current user and no default company found.");
+                }
+
+                $payment = Payment::create([
+                    'company_id' => $companyId,
+                    'customer_id' => $validated['customer_id'],
+                    'reservation_id' => $reservation->id,
+                    'amount' => $validated['fee'],
+                    'payment_date' => $validated['reservation_date'],
+                    'payment_method' => $validated['payment_method'],
+                    'reference_no' => $validated['reference_no'],
+                ]);
+
+                $this->accountingService->recordReservationFeeReceipt($payment);
+            }
         });
 
         return redirect()->back();
@@ -116,6 +158,52 @@ class ReservationController extends Controller
             // Revert unit status to Available
             Unit::where('id', $reservation->unit_id)->update(['status' => 'Available']);
             $reservation->delete();
+        });
+
+        return redirect()->back();
+    }
+
+    /**
+     * Sign Contract: Transition from Active to Contracted (Revenue Recognition)
+     */
+    public function contract(Reservation $reservation)
+    {
+        if ($reservation->status !== 'Active') {
+            return redirect()->back()->with('error', 'Only active reservations can be contracted.');
+        }
+
+        DB::transaction(function () use ($reservation) {
+            $reservation->update(['status' => 'Contracted']);
+            
+            // Record Revenue Recognition in Accounting
+            $this->accountingService->recognizeRevenueFromReservation($reservation, $reservation->fee);
+        });
+
+        return redirect()->back();
+    }
+
+    /**
+     * Cancel/Refund/Forfeit: Transition status and record accounting reversal
+     */
+    public function cancel(Request $request, Reservation $reservation)
+    {
+        $validated = $request->validate([
+            'action' => 'required|in:Refund,Forfeit',
+            'reference_no' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($reservation, $validated) {
+            $reservation->update(['status' => $validated['action'] === 'Refund' ? 'Refunded' : 'Cancelled']);
+            
+            // Revert unit status to Available
+            Unit::where('id', $reservation->unit_id)->update(['status' => 'Available']);
+
+            // Record Accounting reversal
+            if ($validated['action'] === 'Refund') {
+                $this->accountingService->recordRefund($reservation, $reservation->fee, $validated['reference_no']);
+            } else {
+                $this->accountingService->recordForfeiture($reservation, $reservation->fee, $validated['reference_no']);
+            }
         });
 
         return redirect()->back();

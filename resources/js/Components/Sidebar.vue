@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
     HomeIcon,
@@ -29,6 +29,22 @@ const emit = defineEmits(['toggle']);
 const page = usePage();
 const user = computed(() => page.props.auth?.user || {});
 const { hasPermission, hasAnyPermission } = usePermission();
+
+// Scroll Persistence Logic
+const navRef = ref(null);
+
+const handleScroll = (e) => {
+    sessionStorage.setItem('sidebar-scroll', e.target.scrollTop);
+};
+
+onMounted(() => {
+    if (navRef.value) {
+        const savedScroll = sessionStorage.getItem('sidebar-scroll');
+        if (savedScroll) {
+            navRef.value.scrollTop = savedScroll;
+        }
+    }
+});
 
 const toggleSidebar = () => {
     emit('toggle');
@@ -98,7 +114,11 @@ const handleMouseLeave = () => {
 
 
             <!-- Navigation -->
-            <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar z-10">
+            <nav 
+                ref="navRef"
+                @scroll="handleScroll"
+                class="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar z-10"
+            >
                 <!-- Dashboard -->
                 <Link
                     v-if="hasPermission('dashboard.view')"
@@ -354,20 +374,126 @@ const handleMouseLeave = () => {
                  </template>
 
                  <!-- Finance -->
-                 <template v-if="hasPermission('collections.view')">
+                 <template v-if="hasAnyPermission(['accounting.view', 'journal_entries.view', 'payments.view', 'chart_of_accounts.view'])">
                     <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Finance</p>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Finance & Accounting</p>
                     </div>
                     <div v-else class="my-4 border-t border-slate-800"></div>
 
-                    <button 
-                        class="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200 group relative cursor-not-allowed opacity-60"
-                        @mouseenter="handleMouseEnter($event, 'Collections (Coming Soon)')"
+                    <!-- Journal Entries -->
+                    <Link
+                        v-if="hasPermission('journal_entries.view')"
+                        :href="route('journal-entries.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('journal-entries.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Journal Entries')"
                         @mouseleave="handleMouseLeave"
                     >
-                        <CurrencyDollarIcon :class="['w-5 h-5 flex-shrink-0', isCollapsed ? 'mx-auto' : 'mr-3']" />
+                        <ShieldCheckIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('journal-entries.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Journal Entries</span>
+                    </Link>
+
+                    <!-- Payments -->
+                    <Link
+                        v-if="hasPermission('payments.view')"
+                        :href="route('payments.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('payments.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Collections (Payments)')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <CurrencyDollarIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('payments.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
                         <span v-if="!isCollapsed" class="font-medium text-sm">Collections</span>
-                    </button>
+                    </Link>
+
+                    <!-- Chart of Accounts -->
+                    <Link
+                        v-if="hasPermission('chart_of_accounts.view')"
+                        :href="route('chart-of-accounts.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('chart-of-accounts.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Chart of Accounts')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <MapIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('chart-of-accounts.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Chart of Accounts</span>
+                    </Link>
+
+                    <!-- Trial Balance -->
+                    <Link
+                        v-if="hasPermission('accounting.view')"
+                        :href="route('accounting.trial-balance')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('accounting.trial-balance')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Trial Balance')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ShieldCheckIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('accounting.trial-balance') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Trial Balance</span>
+                    </Link>
+
+                    <!-- General Ledger -->
+                    <Link
+                        v-if="hasPermission('accounting.view')"
+                        :href="route('accounting.general-ledger')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('accounting.general-ledger')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'General Ledger')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ClipboardDocumentCheckIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('accounting.general-ledger') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">General Ledger</span>
+                    </Link>
                  </template>
 
             </nav>

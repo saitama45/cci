@@ -2,71 +2,76 @@
 
 namespace Database\Seeders;
 
-use App\Models\Broker;
-use App\Models\Customer;
-use App\Models\Reservation;
-use App\Models\Unit;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Carbon;
+use App\Models\Reservation;
+use App\Models\Customer;
+use App\Models\Unit;
+use App\Models\Company;
+use App\Models\Payment;
+use App\Services\AccountingService;
+use Illuminate\Support\Facades\DB;
 
 class ReservationSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
-    public function run(): void
+    public function run(AccountingService $accountingService): void
     {
-        // Create sample brokers if none exist
-        if (Broker::count() === 0) {
-            Broker::create(['name' => 'John Doe Real Estate', 'commission_rate' => 5.00, 'prc_license' => '12345']);
-            Broker::create(['name' => 'Elite Realty Inc.', 'commission_rate' => 4.50, 'prc_license' => '67890']);
-        }
+        $company = Company::first();
+        if (!$company) return;
+
+        // Reset units to Available for seeding
+        Unit::where('status', 'Reserved')->update(['status' => 'Available']);
 
         $customers = Customer::all();
-        $units = Unit::where('status', 'Available')->take(3)->get();
-        $brokers = Broker::all();
+        $units = Unit::where('status', 'Available')->get();
 
         if ($customers->isEmpty() || $units->isEmpty()) {
+            $this->command->warn('Missing customers or available units. Skipping seeder.');
             return;
         }
 
-        // Reservation 1: Active
-        if ($units->get(0)) {
-            Reservation::create([
-                'customer_id' => $customers->first()->id,
-                'unit_id' => $units->get(0)->id,
-                'broker_id' => $brokers->first()->id,
-                'reservation_date' => now()->subDays(5),
-                'expiry_date' => now()->addDays(25),
-                'fee' => 25000,
-            ]);
-            $units->get(0)->update(['status' => 'Reserved']);
-        }
+        $this->command->info('Seeding 20 reservations with accounting entries in CURRENT MONTH...');
 
-        // Reservation 2: Expiring Soon
-        if ($units->get(1)) {
-            Reservation::create([
-                'customer_id' => $customers->last()->id,
-                'unit_id' => $units->get(1)->id,
-                'broker_id' => null,
-                'reservation_date' => now()->subDays(28),
-                'expiry_date' => now()->addDays(2),
-                'fee' => 25000,
-            ]);
-            $units->get(1)->update(['status' => 'Reserved']);
-        }
+        for ($i = 0; $i < 20; $i++) {
+            $customer = $customers->random();
+            $unit = $units->pop(); 
+            
+            if (!$unit) break;
 
-        // Reservation 3: Expired
-        if ($units->get(2)) {
-            Reservation::create([
-                'customer_id' => $customers->get(1)->id ?? $customers->first()->id,
-                'unit_id' => $units->get(2)->id,
-                'broker_id' => $brokers->last()->id,
-                'reservation_date' => now()->subDays(45),
-                'expiry_date' => now()->subDays(15),
-                'fee' => 30000,
-            ]);
-            $units->get(2)->update(['status' => 'Reserved']);
+            DB::transaction(function () use ($customer, $unit, $company, $accountingService, $i) {
+                // FORCE ALL TO CURRENT MONTH
+                $reservationDate = now()->subDays(rand(0, 5)); 
+                
+                $reservation = Reservation::create([
+                    'customer_id' => $customer->id,
+                    'unit_id' => $unit->id,
+                    'reservation_date' => $reservationDate,
+                    'expiry_date' => (clone $reservationDate)->addDays(30),
+                    'fee' => 25000 + (rand(0, 5) * 5000),
+                    'status' => 'Active',
+                ]);
+
+                $unit->update(['status' => 'Reserved']);
+
+                $payment = Payment::create([
+                    'company_id' => $company->id,
+                    'customer_id' => $customer->id,
+                    'reservation_id' => $reservation->id,
+                    'amount' => $reservation->fee,
+                    'payment_date' => $reservationDate,
+                    'payment_method' => 'Bank Transfer',
+                    'reference_no' => 'SEED-OR-' . (2000 + $i),
+                ]);
+
+                $accountingService->recordReservationFeeReceipt($payment);
+                
+                // Mark some as contracted
+                if ($i % 3 === 0) {
+                    $reservation->update(['status' => 'Contracted']);
+                    $accountingService->recognizeRevenueFromReservation($reservation, $reservation->fee, 'SEED-JV-' . (6000 + $i));
+                }
+            });
         }
+        
+        $this->command->info('✅ Successfully seeded reservations and accounting data.');
     }
 }

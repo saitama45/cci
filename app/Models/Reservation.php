@@ -16,6 +16,7 @@ class Reservation extends Model
         'reservation_date',
         'expiry_date',
         'fee',
+        'status',
     ];
 
     protected $casts = [
@@ -37,5 +38,10 @@ class Reservation extends Model
     public function broker()
     {
         return $this->belongsTo(Broker::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
     }
 }

@@ -29,6 +29,7 @@ const props = defineProps({
     customers: Array,
     units: Array,
     brokers: Array,
+    payment_methods: Array,
     stats: Object
 });
 
@@ -59,6 +60,8 @@ const createForm = useForm({
     reservation_date: formatDateForInput(new Date()),
     expiry_date: formatDateForInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
     fee: '25000',
+    payment_method: 'Cash',
+    reference_no: '',
 });
 
 const editForm = useForm({
@@ -88,7 +91,7 @@ const createReservation = () => {
         onSuccess: () => {
             showCreateModal.value = false;
             createForm.reset();
-            showSuccess('Reservation created successfully');
+            showSuccess('Reservation created and accounting record generated.');
         },
     });
 };
@@ -119,6 +122,42 @@ const updateReservation = () => {
             editForm.reset();
             editingReservation.value = null;
             showSuccess('Reservation updated successfully');
+        },
+    });
+};
+
+const showCancelModal = ref(false);
+const cancellingReservation = ref(null);
+const cancelForm = useForm({
+    action: 'Refund',
+    reference_no: '',
+});
+
+const signContract = async (reservation) => {
+    const confirmed = await confirm({
+        title: 'Sign Contract',
+        message: `Are you sure you want to mark the reservation for ${reservation.customer?.first_name} ${reservation.customer?.last_name} as Contracted? This will recognize the reservation fee as REVENUE in accounting.`
+    });
+    
+    if (confirmed) {
+        post(route('reservations.contract', reservation.id), {}, {
+            onSuccess: () => showSuccess('Contract signed and revenue recognized.'),
+        });
+    }
+};
+
+const showCancelDialog = (reservation) => {
+    cancellingReservation.value = reservation;
+    showCancelModal.value = true;
+};
+
+const submitCancellation = () => {
+    post(route('reservations.cancel-accounting', cancellingReservation.value.id), cancelForm, {
+        onSuccess: () => {
+            showCancelModal.value = false;
+            cancelForm.reset();
+            cancellingReservation.value = null;
+            showSuccess('Reservation cancelled and accounting reversal recorded.');
         },
     });
 };
@@ -278,6 +317,7 @@ const brokerOptions = computed(() => {
                             <tr class="bg-slate-50">
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Customer</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Unit Info</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Accounting Info</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Reservation Dates</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Fee</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Status</th>
@@ -302,6 +342,22 @@ const brokerOptions = computed(() => {
                                     <div class="flex flex-col">
                                         <div class="text-sm font-bold text-slate-800">{{ reservation.unit?.name }}</div>
                                         <div class="text-xs text-blue-600 font-bold tracking-tight">{{ reservation.unit?.project?.name }}</div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div v-if="reservation.payments && reservation.payments.length > 0" class="flex flex-col">
+                                        <div class="flex items-center space-x-1">
+                                            <span class="text-[10px] text-slate-400 font-bold uppercase">Ref:</span>
+                                            <span class="text-xs font-bold text-slate-700">{{ reservation.payments[0].reference_no || 'N/A' }}</span>
+                                        </div>
+                                        <div class="flex items-center space-x-1 mt-0.5">
+                                            <span class="text-[10px] text-slate-400 font-bold uppercase">JE:</span>
+                                            <span v-if="reservation.payments[0].journal_entry_id" class="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded font-black uppercase tracking-tighter">Recorded</span>
+                                            <span v-else class="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-black uppercase tracking-tighter">Pending</span>
+                                        </div>
+                                    </div>
+                                    <div v-else>
+                                        <span class="text-xs text-slate-400 italic">No payment record</span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
@@ -329,7 +385,17 @@ const brokerOptions = computed(() => {
                                     {{ formatCurrency(reservation.fee) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span v-if="isExpired(reservation.expiry_date)" class="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg bg-red-50 text-red-700 border border-red-100">
+                                    <span v-if="reservation.status === 'Contracted'" class="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                        <CheckCircleIcon class="w-3.5 h-3.5 mr-1" />
+                                        Contracted
+                                    </span>
+                                    <span v-else-if="reservation.status === 'Cancelled'" class="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-50 text-slate-700 border border-slate-100">
+                                        Forfeited
+                                    </span>
+                                    <span v-else-if="reservation.status === 'Refunded'" class="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
+                                        Refunded
+                                    </span>
+                                    <span v-else-if="isExpired(reservation.expiry_date)" class="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg bg-red-50 text-red-700 border border-red-100">
                                         <ExclamationTriangleIcon class="w-3.5 h-3.5 mr-1" />
                                         Expired
                                     </span>
@@ -344,8 +410,12 @@ const brokerOptions = computed(() => {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end space-x-1">
+                                        <template v-if="reservation.status === 'Active'">
+                                            <button @click="signContract(reservation)" class="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Sign Contract"><ClipboardDocumentListIcon class="w-5 h-5" /></button>
+                                            <button @click="showCancelDialog(reservation)" class="p-2 text-amber-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Cancel/Refund"><ExclamationTriangleIcon class="w-5 h-5" /></button>
+                                        </template>
                                         <button v-if="hasPermission('reservations.edit')" @click="editReservation(reservation)" class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit Reservation"><PencilSquareIcon class="w-5 h-5" /></button>
-                                        <button v-if="hasPermission('reservations.delete')" @click="deleteReservation(reservation)" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel Reservation"><TrashIcon class="w-5 h-5" /></button>
+                                        <button v-if="hasPermission('reservations.delete')" @click="deleteReservation(reservation)" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete Reservation"><TrashIcon class="w-5 h-5" /></button>
                                     </div>
                                 </td>
                             </tr>
@@ -444,6 +514,18 @@ const brokerOptions = computed(() => {
                                     class="block w-full px-4 py-3 bg-emerald-50/30 border border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-black text-emerald-700 text-lg"
                                 >
                             </div>
+                        </div>
+
+                        <div class="col-span-2 md:col-span-1">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Payment Method</label>
+                            <select v-model="createForm.payment_method" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                                <option v-for="method in payment_methods" :key="method" :value="method">{{ method }}</option>
+                            </select>
+                        </div>
+
+                        <div class="col-span-2 md:col-span-1">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Reference No. (OR# / Trans#)</label>
+                            <input v-model="createForm.reference_no" type="text" placeholder="e.g. OR-12345" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
                         </div>
                     </div>
 
@@ -553,6 +635,66 @@ const brokerOptions = computed(() => {
                         <button type="button" @click="showEditModal = false" class="px-6 py-3 text-slate-600 font-bold bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">Discard</button>
                         <button type="submit" :disabled="editForm.processing" class="px-8 py-3 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-600/30 disabled:opacity-50 transition-all">
                             Update Record
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Cancel/Refund Modal -->
+        <div v-if="showCancelModal" class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+            <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showCancelModal = false"></div>
+            
+            <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full relative animate-in fade-in zoom-in duration-200">
+                <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between rounded-t-3xl">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900">Cancel Reservation</h3>
+                        <p class="text-sm text-slate-500 font-medium">Select accounting treatment.</p>
+                    </div>
+                    <div class="p-2 bg-amber-50 rounded-xl">
+                        <ExclamationTriangleIcon class="w-6 h-6 text-amber-600" />
+                    </div>
+                </div>
+                
+                <form @submit.prevent="submitCancellation" class="p-8 space-y-6">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">How should we handle the fee?</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button 
+                                type="button" 
+                                @click="cancelForm.action = 'Refund'"
+                                :class="[
+                                    'px-4 py-3 rounded-2xl font-bold text-sm transition-all border-2',
+                                    cancelForm.action === 'Refund' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-slate-50 border-transparent text-slate-500 hover:bg-slate-100'
+                                ]"
+                            >
+                                Refund to Customer
+                            </button>
+                            <button 
+                                type="button" 
+                                @click="cancelForm.action = 'Forfeit'"
+                                :class="[
+                                    'px-4 py-3 rounded-2xl font-bold text-sm transition-all border-2',
+                                    cancelForm.action === 'Forfeit' ? 'bg-rose-50 border-rose-500 text-rose-700' : 'bg-slate-50 border-transparent text-slate-500 hover:bg-slate-100'
+                                ]"
+                            >
+                                Forfeit to Income
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-2 italic">
+                            {{ cancelForm.action === 'Refund' ? 'Debit Liability, Credit Cash (Returns money to customer)' : 'Debit Liability, Credit Other Income (Company keeps the money)' }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Reference No. (Optional)</label>
+                        <input v-model="cancelForm.reference_no" type="text" placeholder="Check # or Memo #" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-6 border-t border-slate-100">
+                        <button type="button" @click="showCancelModal = false" class="px-6 py-3 text-slate-600 font-bold bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">Back</button>
+                        <button type="submit" :disabled="cancelForm.processing" class="px-8 py-3 bg-rose-600 text-white font-black rounded-2xl hover:bg-rose-700 shadow-xl shadow-rose-600/30 disabled:opacity-50 transition-all">
+                            Confirm Cancellation
                         </button>
                     </div>
                 </form>

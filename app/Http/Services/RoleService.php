@@ -52,6 +52,22 @@ class RoleService
             'label' => 'Reservations',
             'permissions' => ['view', 'show', 'create', 'edit', 'delete']
         ],
+        'accounting' => [
+            'label' => 'Accounting Reports',
+            'permissions' => ['view']
+        ],
+        'journal_entries' => [
+            'label' => 'Journal Entries',
+            'permissions' => ['view', 'create', 'show']
+        ],
+        'payments' => [
+            'label' => 'Payments / Collections',
+            'permissions' => ['view', 'create']
+        ],
+        'chart_of_accounts' => [
+            'label' => 'Chart of Accounts',
+            'permissions' => ['view', 'create', 'edit']
+        ],
         'collections' => [
             'label' => 'Collections',
             'permissions' => ['view']
