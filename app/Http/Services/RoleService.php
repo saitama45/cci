@@ -44,6 +44,10 @@ class RoleService
             'label' => 'Customers',
             'permissions' => ['view', 'show', 'create', 'edit', 'delete', 'export', 'upload_documents', 'delete_documents']
         ],
+        'brokers' => [
+            'label' => 'Brokers',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
         'document_requirements' => [
             'label' => 'Document Requirements',
             'permissions' => ['view', 'create', 'edit', 'delete']

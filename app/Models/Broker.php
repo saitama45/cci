@@ -14,4 +14,9 @@ class Broker extends Model
         'commission_rate',
         'prc_license',
     ];
+
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class);
+    }
 }

@@ -25,6 +25,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('units', \App\Http\Controllers\UnitController::class);
         Route::resource('price-lists', \App\Http\Controllers\PriceListController::class);
             Route::resource('customers', CustomerController::class);
+            Route::resource('brokers', \App\Http\Controllers\BrokerController::class);
             Route::resource('reservations', ReservationController::class);
             Route::post('reservations/{reservation}/contract', [ReservationController::class, 'contract'])->name('reservations.contract');
             Route::post('reservations/{reservation}/cancel-accounting', [ReservationController::class, 'cancel'])->name('reservations.cancel-accounting');

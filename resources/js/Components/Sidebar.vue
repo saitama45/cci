@@ -348,6 +348,29 @@ const handleMouseLeave = () => {
                         />
                         <span v-if="!isCollapsed" class="font-medium text-sm">Customers</span>
                     </Link>
+
+                    <!-- Brokers -->
+                    <Link
+                        v-if="hasPermission('brokers.view')"
+                        :href="route('brokers.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('brokers.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Brokers & Agents')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <UserGroupIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('brokers.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Brokers & Agents</span>
+                    </Link>
                     
                     <!-- Reservations -->
                     <Link
