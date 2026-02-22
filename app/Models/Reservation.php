@@ -25,6 +25,22 @@ class Reservation extends Model
         'fee' => 'decimal:4',
     ];
 
+    protected $appends = ['total_paid', 'is_dp_fully_paid'];
+
+    public function getTotalPaidAttribute()
+    {
+        return (float) $this->payments()->sum('amount');
+    }
+
+    public function getIsDpFullyPaidAttribute()
+    {
+        // Load latest price list for the unit
+        $priceList = $this->unit->priceList()->latest('effective_date')->first();
+        if (!$priceList) return false;
+        
+        return $this->total_paid >= (float) $priceList->downpayment_amount;
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);
@@ -43,5 +59,10 @@ class Reservation extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function paymentSchedules()
+    {
+        return $this->hasMany(PaymentSchedule::class);
     }
 }

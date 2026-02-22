@@ -45,6 +45,17 @@ const { restrictNumeric, formatNumberWithCommas, stripCommas, formatDateForInput
 
 const pagination = usePagination(props.reservations, 'reservations.index');
 
+const filterByStatus = (status = null) => {
+    router.get(route('reservations.index'), { 
+        status: status,
+        search: pagination.search.value,
+        per_page: pagination.perPage.value
+    }, { 
+        preserveState: true,
+        replace: true 
+    });
+};
+
 onMounted(() => {
     pagination.updateData(props.reservations);
 });
@@ -78,13 +89,13 @@ const isEditingContracted = computed(() => {
 });
 
 // Helper for reactive auto-comma input
-const handleFeeInput = (e, form) => {
+const handleAmountInput = (e, form, field = 'fee') => {
     const input = e.target;
     const rawValue = stripCommas(input.value);
     const numericValue = restrictNumeric(rawValue, true);
     
     // Store clean numeric value in form state
-    form.fee = numericValue;
+    form[field] = numericValue;
     
     // Format display value with commas
     input.value = formatNumberWithCommas(numericValue);
@@ -137,19 +148,67 @@ const cancelForm = useForm({
     reference_no: '',
 });
 
-const signContract = async (reservation) => {
-    const confirmed = await confirm({
-        title: 'Sign Contract',
-        message: `Are you sure you want to mark the reservation for ${reservation.customer?.first_name} ${reservation.customer?.last_name} as Contracted? This will recognize the reservation fee as REVENUE in accounting.`,
-        confirmButtonText: 'Sign Contract',
-        type: 'info'
-    });
-    
-    if (confirmed) {
-        post(route('reservations.contract', reservation.id), {}, {
-            onSuccess: () => showSuccess('Contract signed and revenue recognized.'),
-        });
+// NEW: Contracting Wizard
+const showContractWizard = ref(false);
+const contractingReservation = ref(null);
+const contractForm = useForm({
+    plan_type: 'Installment',
+    amortization_terms: 12,
+    start_date: formatDateForInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+});
+
+// NEW: Record Additional Payment (for DP)
+const showPaymentModal = ref(false);
+const payingReservation = ref(null);
+const paymentForm = useForm({
+    amount: '',
+    payment_date: formatDateForInput(new Date()),
+    payment_method: 'Cash',
+    reference_no: '',
+});
+
+const signContract = (reservation) => {
+    // Validation: Check DP payment status
+    const requiredDP = parseFloat(reservation.unit?.price_list?.downpayment_amount || 0);
+    const totalPaid = parseFloat(reservation.total_paid || 0);
+
+    if (totalPaid < requiredDP) {
+        showError(`Cannot contract: Downpayment balance of ${formatCurrency(requiredDP - totalPaid)} is remaining.`);
+        return;
     }
+
+    contractingReservation.value = reservation;
+    showContractWizard.value = true;
+};
+
+const submitContract = () => {
+    post(route('reservations.contract', contractingReservation.value.id), contractForm, {
+        onSuccess: () => {
+            showContractWizard.value = false;
+            contractForm.reset();
+            contractingReservation.value = null;
+            showSuccess('Contract signed and payment schedule generated.');
+        },
+    });
+};
+
+const openPaymentModal = (reservation) => {
+    payingReservation.value = reservation;
+    const requiredDP = parseFloat(reservation.unit?.price_list?.downpayment_amount || 0);
+    const totalPaid = parseFloat(reservation.total_paid || 0);
+    paymentForm.amount = Math.max(0, requiredDP - totalPaid).toString();
+    showPaymentModal.value = true;
+};
+
+const submitPayment = () => {
+    post(route('reservations.record-payment', payingReservation.value.id), paymentForm, {
+        onSuccess: () => {
+            showPaymentModal.value = false;
+            paymentForm.reset();
+            payingReservation.value = null;
+            showSuccess('Payment recorded successfully.');
+        },
+    });
 };
 
 const showCancelDialog = (reservation) => {
@@ -251,44 +310,79 @@ const brokerOptions = computed(() => {
         <div class="py-6 space-y-6">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <!-- Compact Horizontal Stats Grid -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white px-5 py-4 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-4">
-                        <div class="p-2 bg-blue-50 rounded-lg shrink-0">
-                            <ClipboardDocumentListIcon class="w-5 h-5 text-blue-600" />
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <button 
+                        @click="filterByStatus(null)"
+                        class="bg-white px-6 py-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4 hover:border-blue-200 hover:bg-blue-50/10 transition-all text-left group"
+                    >
+                        <div class="p-3 bg-blue-50 rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+                            <ClipboardDocumentListIcon class="w-6 h-6 text-blue-600" />
                         </div>
                         <div>
-                            <div class="text-lg font-black text-slate-900 leading-none">{{ stats.total }}</div>
-                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Total</div>
+                            <div class="text-2xl font-black text-slate-900 leading-none">{{ stats.total }}</div>
+                            <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Total Reservations</div>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="bg-white px-5 py-4 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-4">
-                        <div class="p-2 bg-emerald-50 rounded-lg shrink-0">
-                            <CheckCircleIcon class="w-5 h-5 text-emerald-600" />
+                    <button 
+                        @click="filterByStatus('Ongoing DP')"
+                        class="bg-white px-6 py-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4 hover:border-emerald-200 hover:bg-emerald-50/10 transition-all text-left group"
+                    >
+                        <div class="p-3 bg-emerald-50 rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+                            <ClockIcon class="w-6 h-6 text-emerald-600" />
                         </div>
                         <div>
-                            <div class="text-lg font-black text-slate-900 leading-none">{{ stats.active }}</div>
-                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Active</div>
+                            <div class="text-2xl font-black text-slate-900 leading-none">{{ stats.ongoing_dp }}</div>
+                            <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Ongoing DP</div>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="bg-white px-5 py-4 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-4">
-                        <div class="p-2 bg-amber-50 rounded-lg shrink-0">
-                            <ClockIcon class="w-5 h-5 text-amber-600" />
+                    <button 
+                        @click="filterByStatus('Ready for Contract')"
+                        class="bg-white px-6 py-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4 hover:border-green-200 hover:bg-green-50/10 transition-all text-left group"
+                    >
+                        <div class="p-3 bg-green-50 rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+                            <CheckCircleIcon class="w-6 h-6 text-green-600" />
                         </div>
                         <div>
-                            <div class="text-lg font-black text-slate-900 leading-none">{{ stats.expiring_soon }}</div>
-                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Expiring</div>
+                            <div class="text-2xl font-black text-slate-900 leading-none">{{ stats.ready_for_contract }}</div>
+                            <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">DP Fully Paid</div>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="bg-white px-5 py-4 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-4">
-                        <div class="p-2 bg-indigo-50 rounded-lg shrink-0">
-                            <CurrencyDollarIcon class="w-5 h-5 text-indigo-600" />
+                    <button 
+                        @click="filterByStatus('Contracted')"
+                        class="bg-white px-6 py-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4 hover:border-indigo-200 hover:bg-indigo-50/10 transition-all text-left group"
+                    >
+                        <div class="p-3 bg-indigo-50 rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+                            <ClipboardDocumentCheckIcon class="w-6 h-6 text-indigo-600" />
                         </div>
                         <div>
-                            <div class="text-lg font-black text-slate-900 leading-none">{{ formatCurrency(stats.total_fees) }}</div>
-                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Fees</div>
+                            <div class="text-2xl font-black text-slate-900 leading-none">{{ stats.contracted }}</div>
+                            <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Contracted (Sold)</div>
+                        </div>
+                    </button>
+
+                    <button 
+                        @click="filterByStatus('Expiring Soon')"
+                        class="bg-white px-6 py-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4 hover:border-amber-200 hover:bg-amber-50/10 transition-all text-left group"
+                    >
+                        <div class="p-3 bg-amber-50 rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+                            <ClockIcon class="w-6 h-6 text-amber-600" />
+                        </div>
+                        <div>
+                            <div class="text-2xl font-black text-slate-900 leading-none">{{ stats.expiring_soon }}</div>
+                            <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Expiring Soon</div>
+                        </div>
+                    </button>
+
+                    <div class="bg-white px-6 py-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
+                        <div class="p-3 bg-slate-50 rounded-xl shrink-0">
+                            <CurrencyDollarIcon class="w-6 h-6 text-slate-600" />
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xl font-black text-slate-900 leading-none truncate" :title="formatCurrency(stats.total_collected)">{{ formatCurrency(stats.total_collected) }}</div>
+                            <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Total Collected</div>
                         </div>
                     </div>
                 </div>
@@ -325,9 +419,8 @@ const brokerOptions = computed(() => {
                             <tr class="bg-slate-50">
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Customer</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Unit Info</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Accounting Info</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Reservation Dates</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Fee</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Reserved / Expiry</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">DP Paid</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Status</th>
                                 <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Actions</th>
                             </tr>
@@ -352,31 +445,14 @@ const brokerOptions = computed(() => {
                                         <div class="text-xs text-blue-600 font-bold tracking-tight">{{ reservation.unit?.project?.name }}</div>
                                     </div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div v-if="reservation.payments && reservation.payments.length > 0" class="flex flex-col">
-                                        <div class="flex items-center space-x-1">
-                                            <span class="text-[10px] text-slate-400 font-bold uppercase">Ref:</span>
-                                            <span class="text-xs font-bold text-slate-700">{{ reservation.payments[0].reference_no || 'N/A' }}</span>
-                                        </div>
-                                        <div class="flex items-center space-x-1 mt-0.5">
-                                            <span class="text-[10px] text-slate-400 font-bold uppercase">JE:</span>
-                                            <span v-if="reservation.payments[0].journal_entry_id" class="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded font-black uppercase tracking-tighter">Recorded</span>
-                                            <span v-else class="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-black uppercase tracking-tighter">Pending</span>
-                                        </div>
-                                    </div>
-                                    <div v-else>
-                                        <span class="text-xs text-slate-400 italic">No payment record</span>
-                                    </div>
-                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    <div class="flex items-center space-x-4">
-                                        <div class="flex flex-col">
-                                            <span class="text-[10px] text-slate-400 font-bold uppercase">Reserved</span>
+                                    <div class="flex flex-col">
+                                        <div class="flex items-center space-x-1">
+                                            <span class="text-[10px] text-slate-400 font-bold uppercase w-12">Reserved:</span>
                                             <span class="text-slate-700 font-semibold">{{ formatDateDisplay(reservation.reservation_date) }}</span>
                                         </div>
-                                        <div class="w-4 h-[1px] bg-slate-200"></div>
-                                        <div class="flex flex-col">
-                                            <span class="text-[10px] text-slate-400 font-bold uppercase">Expires</span>
+                                        <div class="flex items-center space-x-1">
+                                            <span class="text-[10px] text-slate-400 font-bold uppercase w-12">Expiry:</span>
                                             <span 
                                                 :class="[
                                                     'font-semibold',
@@ -389,8 +465,11 @@ const brokerOptions = computed(() => {
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">
-                                    {{ formatCurrency(reservation.fee) }}
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-emerald-600">{{ formatCurrency(reservation.total_paid) }}</span>
+                                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-tight">of {{ formatCurrency(reservation.unit?.price_list?.downpayment_amount) }} DP</span>
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span v-if="reservation.status === 'Contracted'" class="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100">
@@ -419,7 +498,24 @@ const brokerOptions = computed(() => {
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end space-x-1">
                                         <template v-if="reservation.status === 'Active'">
-                                            <button @click="signContract(reservation)" class="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Sign Contract"><ClipboardDocumentListIcon class="w-5 h-5" /></button>
+                                            <button 
+                                                v-if="!reservation.is_dp_fully_paid"
+                                                @click="openPaymentModal(reservation)" 
+                                                class="p-2 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" 
+                                                title="Collect Downpayment"
+                                            >
+                                                <CurrencyDollarIcon class="w-5 h-5" />
+                                            </button>
+                                            
+                                            <button 
+                                                @click="signContract(reservation)" 
+                                                class="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" 
+                                                :class="{'opacity-50 cursor-not-allowed': !reservation.is_dp_fully_paid}"
+                                                :title="reservation.is_dp_fully_paid ? 'Sign Contract' : 'Complete Downpayment first'"
+                                            >
+                                                <ClipboardDocumentListIcon class="w-5 h-5" />
+                                            </button>
+                                            
                                             <button @click="showCancelDialog(reservation)" class="p-2 text-amber-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Cancel/Refund"><ExclamationTriangleIcon class="w-5 h-5" /></button>
                                         </template>
                                         <button v-if="hasPermission('reservations.edit')" @click="editReservation(reservation)" class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit Reservation"><PencilSquareIcon class="w-5 h-5" /></button>
@@ -434,10 +530,10 @@ const brokerOptions = computed(() => {
         </div>
 
         <!-- Create Reservation Modal -->
-        <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+        <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
             <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showCreateModal = false"></div>
             
-            <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative animate-in fade-in zoom-in duration-200 my-auto">
                 <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between rounded-t-3xl">
                     <div>
                         <h3 class="text-xl font-bold text-slate-900">New Reservation</h3>
@@ -516,7 +612,7 @@ const brokerOptions = computed(() => {
                             <div class="relative">
                                 <input 
                                     :value="formatNumberWithCommas(createForm.fee)" 
-                                    @input="handleFeeInput($event, createForm)"
+                                    @input="handleAmountInput($event, createForm)"
                                     type="text" 
                                     required 
                                     class="block w-full px-4 py-3 bg-emerald-50/30 border border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-black text-emerald-700 text-lg"
@@ -548,10 +644,10 @@ const brokerOptions = computed(() => {
         </div>
 
         <!-- Edit Reservation Modal -->
-        <div v-if="showEditModal" class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+        <div v-if="showEditModal" class="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
             <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showEditModal = false"></div>
             
-            <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative animate-in fade-in zoom-in duration-200 my-auto">
                 <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between rounded-t-3xl">
                     <div>
                         <h3 class="text-xl font-bold text-slate-900">Modify Reservation</h3>
@@ -639,7 +735,7 @@ const brokerOptions = computed(() => {
                             <div class="relative">
                                 <input 
                                     :value="formatNumberWithCommas(editForm.fee)" 
-                                    @input="handleFeeInput($event, editForm)"
+                                    @input="handleAmountInput($event, editForm)"
                                     type="text" 
                                     required 
                                     class="block w-full px-4 py-3 bg-emerald-50/30 border border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-black text-emerald-700 text-lg"
@@ -659,10 +755,10 @@ const brokerOptions = computed(() => {
         </div>
 
         <!-- Cancel/Refund Modal -->
-        <div v-if="showCancelModal" class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+        <div v-if="showCancelModal" class="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
             <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showCancelModal = false"></div>
             
-            <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full relative animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full relative animate-in fade-in zoom-in duration-200 my-auto">
                 <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between rounded-t-3xl">
                     <div>
                         <h3 class="text-xl font-bold text-slate-900">Cancel Reservation</h3>
@@ -712,6 +808,181 @@ const brokerOptions = computed(() => {
                         <button type="button" @click="showCancelModal = false" class="px-6 py-3 text-slate-600 font-bold bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">Back</button>
                         <button type="submit" :disabled="cancelForm.processing" class="px-8 py-3 bg-rose-600 text-white font-black rounded-2xl hover:bg-rose-700 shadow-xl shadow-rose-600/30 disabled:opacity-50 transition-all">
                             Confirm Cancellation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Record Payment Modal (For DP Balance) -->
+        <div v-if="showPaymentModal" class="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
+            <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showPaymentModal = false"></div>
+            
+            <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full relative animate-in fade-in zoom-in duration-200 my-auto">
+                <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between rounded-t-3xl">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900">Collect Downpayment</h3>
+                        <p class="text-sm text-slate-500 font-medium">Record additional payment for this unit.</p>
+                    </div>
+                    <div class="p-2 bg-emerald-50 rounded-xl">
+                        <CurrencyDollarIcon class="w-6 h-6 text-emerald-600" />
+                    </div>
+                </div>
+                
+                <form @submit.prevent="submitPayment" class="p-8 space-y-5">
+                    <!-- Payment Breakdown Summary -->
+                    <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Required DP</span>
+                            <span class="text-slate-900 font-black text-sm">{{ formatCurrency(payingReservation?.unit?.price_list?.downpayment_amount) }}</span>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Total Paid</span>
+                                <span class="text-emerald-600 font-black text-sm">{{ formatCurrency(payingReservation?.total_paid) }}</span>
+                            </div>
+                            
+                            <!-- Scrollable History -->
+                            <div v-if="payingReservation?.payments?.length" class="pl-3 border-l-2 border-slate-200 space-y-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                                <div v-for="payment in payingReservation.payments" :key="payment.id" class="flex justify-between items-center text-[10px]">
+                                    <div class="flex flex-col">
+                                        <span class="text-slate-600 font-bold">{{ formatDateDisplay(payment.payment_date) }}</span>
+                                        <span class="text-slate-400 font-medium">{{ payment.reference_no || 'No Ref' }} • {{ payment.payment_method }}</span>
+                                    </div>
+                                    <span class="text-slate-700 font-black">{{ formatCurrency(payment.amount) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-200 flex justify-between items-center">
+                            <span class="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Outstanding Balance</span>
+                            <span class="text-rose-600 font-black text-lg">{{ formatCurrency(Math.max(0, parseFloat(payingReservation?.unit?.price_list?.downpayment_amount || 0) - parseFloat(payingReservation?.total_paid || 0))) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Amount to Pay (PHP)</label>
+                        <input 
+                            :value="formatNumberWithCommas(paymentForm.amount)" 
+                            @input="handleAmountInput($event, paymentForm, 'amount')"
+                            type="text" 
+                            required 
+                            class="block w-full px-4 py-3 bg-emerald-50/30 border border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-black text-emerald-700 text-lg"
+                        >
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Date</label>
+                            <input v-model="paymentForm.payment_date" type="date" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Method</label>
+                            <select v-model="paymentForm.payment_method" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                                <option v-for="method in payment_methods" :key="method" :value="method">{{ method }}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Reference No.</label>
+                        <input v-model="paymentForm.reference_no" type="text" placeholder="OR# / Trans#" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-6 border-t border-slate-100">
+                        <button type="button" @click="showPaymentModal = false" class="px-6 py-3 text-slate-600 font-bold bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">Cancel</button>
+                        <button type="submit" :disabled="paymentForm.processing" class="px-8 py-3 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 shadow-xl shadow-emerald-600/30 disabled:opacity-50 transition-all">
+                            Post Payment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Contracting Wizard Modal -->
+        <div v-if="showContractWizard" class="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
+            <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showContractWizard = false"></div>
+            
+            <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full relative animate-in fade-in zoom-in duration-200 my-auto">
+                <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between rounded-t-3xl">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900">Sign Sales Contract</h3>
+                        <p class="text-sm text-slate-500 font-medium">Select payment plan and generate schedule.</p>
+                    </div>
+                    <div class="p-2 bg-indigo-50 rounded-xl">
+                        <ClipboardDocumentListIcon class="w-6 h-6 text-indigo-600" />
+                    </div>
+                </div>
+                
+                <form @submit.prevent="submitContract" class="p-8 space-y-6">
+                    <div class="space-y-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Choose Payment Plan</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button 
+                                type="button" 
+                                @click="contractForm.plan_type = 'Spot Cash'"
+                                :class="[
+                                    'p-4 rounded-2xl border-2 text-left transition-all',
+                                    contractForm.plan_type === 'Spot Cash' ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-transparent hover:bg-slate-100'
+                                ]"
+                            >
+                                <div class="font-black text-slate-900">Spot Cash</div>
+                                <div class="text-[10px] text-slate-500 font-medium mt-1">Full payment of remaining balance.</div>
+                            </button>
+                            <button 
+                                type="button" 
+                                @click="contractForm.plan_type = 'Installment'"
+                                :class="[
+                                    'p-4 rounded-2xl border-2 text-left transition-all',
+                                    contractForm.plan_type === 'Installment' ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-transparent hover:bg-slate-100'
+                                ]"
+                            >
+                                <div class="font-black text-slate-900">Installment</div>
+                                <div class="text-[10px] text-slate-500 font-medium mt-1">Monthly amortization over fixed terms.</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-6">
+                        <div v-if="contractForm.plan_type === 'Installment'">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Amortization Terms</label>
+                            <div class="relative">
+                                <select v-model="contractForm.amortization_terms" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                                    <option :value="12">12 Months (1 yr)</option>
+                                    <option :value="24">24 Months (2 yrs)</option>
+                                    <option :value="36">36 Months (3 yrs)</option>
+                                    <option :value="60">60 Months (5 yrs)</option>
+                                    <option :value="120">120 Months (10 yrs)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div :class="contractForm.plan_type === 'Spot Cash' ? 'col-span-2' : ''">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Payment Start Date</label>
+                            <input v-model="contractForm.start_date" type="date" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-indigo-600 font-bold">Total Contract Price</span>
+                            <span class="text-slate-900 font-black">{{ formatCurrency(contractingReservation?.unit?.price_list?.tcp) }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-indigo-600 font-bold">Total Already Paid</span>
+                            <span class="text-emerald-600 font-black">- {{ formatCurrency(contractingReservation?.total_paid) }}</span>
+                        </div>
+                        <div class="h-[1px] bg-indigo-100 my-2"></div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500 font-bold">Balance to Schedule</span>
+                            <span class="text-slate-900 font-black">{{ formatCurrency(parseFloat(contractingReservation?.unit?.price_list?.tcp || 0) - parseFloat(contractingReservation?.total_paid || 0)) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-6 border-t border-slate-100">
+                        <button type="button" @click="showContractWizard = false" class="px-6 py-3 text-slate-600 font-bold bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">Back</button>
+                        <button type="submit" :disabled="contractForm.processing" class="px-8 py-3 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-600/30 disabled:opacity-50 transition-all">
+                            Generate Schedule & Sign
                         </button>
                     </div>
                 </form>

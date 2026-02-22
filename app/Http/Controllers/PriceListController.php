@@ -58,6 +58,7 @@ class PriceListController extends Controller
         $validated = $request->validate([
             'unit_id' => 'required|exists:units,id',
             'price_per_sqm' => 'required|numeric|min:0',
+            'downpayment_amount' => 'required|numeric|min:0',
             'effective_date' => 'required|date',
         ]);
 
@@ -71,6 +72,7 @@ class PriceListController extends Controller
         PriceList::create([
             'unit_id' => $validated['unit_id'],
             'price_per_sqm' => $validated['price_per_sqm'],
+            'downpayment_amount' => $validated['downpayment_amount'],
             'vat_amount' => $vatAmount,
             'tcp' => $tcp,
             'effective_date' => $validated['effective_date'],
@@ -102,6 +104,7 @@ class PriceListController extends Controller
 
         $validated = $request->validate([
             'price_per_sqm' => 'required|numeric|min:0',
+            'downpayment_amount' => 'required|numeric|min:0',
             'effective_date' => 'required|date',
         ]);
 
@@ -114,6 +117,7 @@ class PriceListController extends Controller
 
         $priceList->update([
             'price_per_sqm' => $validated['price_per_sqm'],
+            'downpayment_amount' => $validated['downpayment_amount'],
             'vat_amount' => $vatAmount,
             'tcp' => $tcp,
             'effective_date' => $validated['effective_date'],
@@ -142,7 +146,7 @@ class PriceListController extends Controller
         return Unit::where('project_id', $projectId)
                    ->whereDoesntHave('priceList') // Optional: only show units without price lists? Or allow multiple? Assuming 1 active for now or listing all. 
                    // Actually, a unit can have price history. But for creating a NEW price list entry, we probably just want to select the unit.
-                   ->select('id', 'name', 'block_num', 'lot_num')
+                   ->select('id', 'name', 'block_num', 'lot_num', 'sqm_area')
                    ->get();
     }
 }

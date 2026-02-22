@@ -29,6 +29,7 @@ Route::middleware('auth')->group(function () {
             Route::resource('reservations', ReservationController::class);
             Route::post('reservations/{reservation}/contract', [ReservationController::class, 'contract'])->name('reservations.contract');
             Route::post('reservations/{reservation}/cancel-accounting', [ReservationController::class, 'cancel'])->name('reservations.cancel-accounting');
+            Route::post('reservations/{reservation}/record-payment', [ReservationController::class, 'recordPayment'])->name('reservations.record-payment');
             Route::resource('document-requirements', \App\Http\Controllers\DocumentRequirementController::class);
             Route::resource('customer-documents', \App\Http\Controllers\CustomerDocumentController::class)->only(['store', 'destroy']);
             

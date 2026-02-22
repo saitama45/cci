@@ -14,6 +14,7 @@ class PriceList extends Model
         'price_per_sqm',
         'tcp',
         'vat_amount',
+        'downpayment_amount',
         'effective_date',
     ];
 
@@ -22,6 +23,7 @@ class PriceList extends Model
         'price_per_sqm' => 'decimal:4',
         'tcp' => 'decimal:4',
         'vat_amount' => 'decimal:4',
+        'downpayment_amount' => 'decimal:4',
     ];
 
     public function unit()

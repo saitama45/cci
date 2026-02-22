@@ -120,6 +120,26 @@ const formatCurrency = (value) => {
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Downpayment Details -->
+                        <div>
+                            <h3 class="flex items-center text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
+                                <BanknotesIcon class="w-4 h-4 mr-2 text-slate-400" />
+                                Downpayment Terms
+                            </h3>
+                            <div class="bg-blue-50 rounded-xl p-5 border border-blue-100 space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-blue-700">DP Percentage</span>
+                                    <span class="text-sm font-black text-blue-900">
+                                        {{ ((parseFloat(priceList.downpayment_amount || 0) / parseFloat(priceList.tcp || 1)) * 100).toFixed(2) }}%
+                                    </span>
+                                </div>
+                                <div class="flex justify-between items-center pt-2 border-t border-blue-200">
+                                    <span class="text-base font-bold text-blue-800">Downpayment Amount</span>
+                                    <span class="text-base font-mono font-bold text-blue-900">{{ formatCurrency(priceList.downpayment_amount) }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

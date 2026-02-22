@@ -27,7 +27,7 @@ class ReservationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Reservation::with(['customer', 'unit.project', 'broker', 'payments.journalEntry']);
+        $query = Reservation::with(['customer', 'unit.project', 'unit.priceList', 'broker', 'payments.journalEntry']);
 
         if ($request->search) {
             $search = $request->search;
@@ -37,6 +37,31 @@ class ReservationController extends Controller
             })->orWhereHas('unit', function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%");
             });
+        }
+
+        if ($request->status) {
+            if ($request->status === 'Ongoing DP') {
+                $query->where('status', 'Active')->where(function($q) {
+                    $q->whereColumn(
+                        DB::raw('(SELECT SUM(amount) FROM payments WHERE reservation_id = reservations.id)'),
+                        '<',
+                        DB::raw('(SELECT downpayment_amount FROM price_lists WHERE unit_id = reservations.unit_id)')
+                    );
+                });
+            } elseif ($request->status === 'Ready for Contract') {
+                $query->where('status', 'Active')->where(function($q) {
+                    $q->whereColumn(
+                        DB::raw('(SELECT SUM(amount) FROM payments WHERE reservation_id = reservations.id)'),
+                        '>=',
+                        DB::raw('(SELECT downpayment_amount FROM price_lists WHERE unit_id = reservations.unit_id)')
+                    );
+                });
+            } elseif ($request->status === 'Expiring Soon') {
+                $query->where('status', 'Active')
+                      ->whereBetween('expiry_date', [now(), now()->addDays(7)]);
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         $reservations = $query->latest()->paginate($request->per_page ?? 10)->withQueryString();
@@ -60,9 +85,25 @@ class ReservationController extends Controller
             'payment_methods' => ['Cash', 'Check', 'Bank Transfer', 'GCash/Maya', 'Other'],
             'stats' => [
                 'total' => Reservation::count(),
-                'active' => Reservation::where('expiry_date', '>=', now())->count(),
-                'expiring_soon' => Reservation::whereBetween('expiry_date', [now(), now()->addDays(7)])->count(),
-                'total_fees' => (float) Reservation::sum('fee') ?: 0,
+                'ongoing_dp' => Reservation::where('status', 'Active')->where(function($q) {
+                    $q->whereColumn(
+                        DB::raw('(SELECT SUM(amount) FROM payments WHERE reservation_id = reservations.id)'),
+                        '<',
+                        DB::raw('(SELECT downpayment_amount FROM price_lists WHERE unit_id = reservations.unit_id)')
+                    );
+                })->count(),
+                'ready_for_contract' => Reservation::where('status', 'Active')->where(function($q) {
+                    $q->whereColumn(
+                        DB::raw('(SELECT SUM(amount) FROM payments WHERE reservation_id = reservations.id)'),
+                        '>=',
+                        DB::raw('(SELECT downpayment_amount FROM price_lists WHERE unit_id = reservations.unit_id)')
+                    );
+                })->count(),
+                'contracted' => Reservation::where('status', 'Contracted')->count(),
+                'expiring_soon' => Reservation::where('status', 'Active')
+                    ->whereBetween('expiry_date', [now(), now()->addDays(7)])
+                    ->count(),
+                'total_collected' => (float) Payment::whereNotNull('reservation_id')->sum('amount') ?: 0,
             ]
         ]);
     }
@@ -184,24 +225,77 @@ class ReservationController extends Controller
     /**
      * Sign Contract: Transition from Active to Contracted (Revenue Recognition)
      */
-    public function contract(Reservation $reservation)
+    public function contract(Request $request, Reservation $reservation)
     {
         if ($reservation->status !== 'Active') {
             return redirect()->back()->with('error', 'Only active reservations can be contracted.');
         }
 
-        DB::transaction(function () use ($reservation) {
+        $validated = $request->validate([
+            'plan_type' => 'required|in:Spot Cash,Installment',
+            'amortization_terms' => 'required_if:plan_type,Installment|nullable|integer|min:1',
+            'start_date' => 'required|date',
+        ]);
+
+        $priceList = $reservation->unit->priceList;
+        if (!$priceList) {
+            return redirect()->back()->with('error', 'Pricing not set for this unit. Please set a price list first.');
+        }
+
+        // Validation: Must have paid the required downpayment
+        if (!$reservation->is_dp_fully_paid) {
+            $due = (float) $priceList->downpayment_amount - $reservation->total_paid;
+            return redirect()->back()->with('error', "Cannot contract: Downpayment is not fully paid. Balance due: " . number_format($due, 2));
+        }
+
+        DB::transaction(function () use ($reservation, $validated, $priceList) {
             $reservation->update(['status' => 'Contracted']);
             
-            // Get original reference number from the payment record
+            // Update unit status to Sold
+            $reservation->unit->update(['status' => 'Sold']);
+
+            // Record Revenue Recognition in Accounting
             $payment = $reservation->payments()->first();
             $referenceNo = $payment ? $payment->reference_no : null;
-            
-            // Record Revenue Recognition in Accounting with the reference number
             $this->accountingService->recognizeRevenueFromReservation($reservation, $reservation->fee, $referenceNo);
+
+            // Generate Payment Schedule
+            $startDate = \Carbon\Carbon::parse($validated['start_date']);
+            $remainingBalance = (float) $priceList->tcp - $reservation->total_paid;
+
+            if ($validated['plan_type'] === 'Spot Cash') {
+                \App\Models\PaymentSchedule::create([
+                    'reservation_id' => $reservation->id,
+                    'customer_id' => $reservation->customer_id,
+                    'unit_id' => $reservation->unit_id,
+                    'type' => 'Full Payment',
+                    'installment_no' => 1,
+                    'due_date' => $startDate,
+                    'amount_due' => $remainingBalance,
+                    'status' => 'Pending',
+                    'remarks' => 'Spot Cash full payment balance'
+                ]);
+            } else {
+                $terms = (int) $validated['amortization_terms'];
+                $monthlyAmount = $remainingBalance / $terms;
+
+                for ($i = 1; $i <= $terms; $i++) {
+                    \App\Models\PaymentSchedule::create([
+                        'reservation_id' => $reservation->id,
+                        'customer_id' => $reservation->customer_id,
+                        'unit_id' => $reservation->unit_id,
+                        'type' => 'Amortization',
+                        'installment_no' => $i,
+                        'due_date' => $startDate->copy()->addMonths($i - 1),
+                        'amount_due' => $monthlyAmount,
+                        'status' => 'Pending',
+                        'remarks' => "Monthly Amortization $i of $terms"
+                    ]);
+                }
+            }
         });
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Contract signed and payment schedule generated.');
     }
 
     /**
@@ -229,5 +323,36 @@ class ReservationController extends Controller
         });
 
         return redirect()->back();
+    }
+
+    /**
+     * Record an additional payment (e.g., Downpayment balance)
+     */
+    public function recordPayment(Request $request, Reservation $reservation)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'payment_date' => 'required|date',
+            'payment_method' => 'required|string',
+            'reference_no' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($reservation, $validated) {
+            $companyId = Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? null);
+
+            $payment = Payment::create([
+                'company_id' => $companyId,
+                'customer_id' => $reservation->customer_id,
+                'reservation_id' => $reservation->id,
+                'amount' => $validated['amount'],
+                'payment_date' => $validated['payment_date'],
+                'payment_method' => $validated['payment_method'],
+                'reference_no' => $validated['reference_no'],
+            ]);
+
+            $this->accountingService->recordReservationFeeReceipt($payment);
+        });
+
+        return redirect()->back()->with('success', 'Payment recorded and ledger updated.');
     }
 }

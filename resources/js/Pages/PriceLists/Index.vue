@@ -1,6 +1,6 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { ref, onMounted, watch, nextTick, computed, reactive } from 'vue';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import DataTable from '@/Components/DataTable.vue';
@@ -31,14 +31,26 @@ const availableUnits = ref([]);
 const selectedProjectId = ref('');
 const isFetchingUnits = ref(false);
 
-const createPriceDisplay = ref('');
-const editPriceDisplay = ref('');
+// Centralized reactive display values to fix template unwrap issues
+const displays = ref({
+    createPrice: '',
+    editPrice: '',
+    createDP: '',
+    editDP: ''
+});
+
+const selectedUnit = computed(() => {
+    return availableUnits.value.find(u => u.id == createForm.unit_id);
+});
 
 const formatPriceInput = (value) => {
     if (value === null || value === undefined || value === '') return '';
     
+    // Convert to string and strip existing commas for clean processing
+    let cleanValue = value.toString().replace(/,/g, '');
+    
     // Apply centralized numeric restriction (positive only)
-    let cleanValue = restrictNumeric(value, true, false);
+    cleanValue = restrictNumeric(cleanValue, true, false);
     
     if (!cleanValue) return '';
 
@@ -59,26 +71,24 @@ const unformatPriceInput = (value) => {
     return value.toString().replace(/,/g, '');
 };
 
-const handlePriceInput = (e, form, displayRef) => {
+const handlePriceInput = (e, form, field, displayName) => {
     const input = e.target;
     const start = input.selectionStart;
     const oldVal = input.value;
     
-    // Apply restriction
+    // Apply restriction and formatting
     const formatted = formatPriceInput(oldVal);
+    const unformatted = unformatPriceInput(formatted);
     
-    // Explicitly update the input value to force restriction in the DOM
-    // This is necessary because if the formatted value is same as displayRef, 
-    // Vue might skip the DOM update.
+    // Update reactive state
+    displays.value[displayName] = formatted;
+    form[field] = unformatted;
+    
+    // Sync DOM directly to handle commas without losing focus/cursor
     input.value = formatted;
-    displayRef.value = formatted;
-    form.price_per_sqm = unformatPriceInput(formatted);
     
     nextTick(() => {
-        // Recalculate position
-        const newLen = formatted.length;
-        const oldLen = oldVal.length;
-        const newPos = Math.max(0, start + (newLen - oldLen));
+        const newPos = Math.max(0, start + (formatted.length - oldVal.length));
         input.setSelectionRange(newPos, newPos);
     });
 };
@@ -99,15 +109,81 @@ watch(() => props.priceLists, (newPriceLists) => {
     pagination.updateData(newPriceLists);
 }, { deep: true });
 
+const processing = ref(false);
+
 const createForm = useForm({
     unit_id: '',
     price_per_sqm: '',
+    downpayment_amount: '',
+    dp_percentage: 20,
     effective_date: new Date().toISOString().substr(0, 10),
 });
 
 const editForm = useForm({
     price_per_sqm: '',
+    downpayment_amount: '',
+    dp_percentage: 20,
     effective_date: '',
+});
+
+// Real-time Calculators with robust safety
+const calculateTCP = (pricePerSqm, area) => {
+    if (!pricePerSqm || !area) return 0;
+    const price = parseFloat(pricePerSqm.toString().replace(/,/g, '') || 0);
+    const sqm = parseFloat(area || 0);
+    if (price <= 0 || sqm <= 0) return 0;
+    return (price * sqm) * 1.12; // 12% VAT
+};
+
+const createTCP = computed(() => {
+    return calculateTCP(createForm.price_per_sqm, selectedUnit.value?.sqm_area);
+});
+const editTCP = computed(() => {
+    return calculateTCP(editForm.price_per_sqm, editingPriceList.value?.unit?.sqm_area);
+});
+
+// Watchers for DP auto-sync
+watch(() => createForm.dp_percentage, (val) => {
+    if (createTCP.value > 0) {
+        const amount = (createTCP.value * (parseFloat(val || 0) / 100)).toFixed(2);
+        createForm.downpayment_amount = amount;
+        displays.value.createDP = formatPriceInput(amount);
+    }
+});
+
+watch(() => editForm.dp_percentage, (val) => {
+    if (editTCP.value > 0) {
+        const amount = (editTCP.value * (parseFloat(val || 0) / 100)).toFixed(2);
+        editForm.downpayment_amount = amount;
+        displays.value.editDP = formatPriceInput(amount);
+    }
+});
+
+watch(createTCP, (newTcp) => {
+    if (newTcp > 0 && createForm.dp_percentage) {
+        const amount = (newTcp * (parseFloat(createForm.dp_percentage) / 100)).toFixed(2);
+        createForm.downpayment_amount = amount;
+        displays.value.createDP = formatPriceInput(amount);
+    }
+});
+
+watch(editTCP, (newTcp) => {
+    if (newTcp > 0 && editForm.dp_percentage) {
+        const amount = (newTcp * (parseFloat(editForm.dp_percentage) / 100)).toFixed(2);
+        editForm.downpayment_amount = amount;
+        displays.value.editDP = formatPriceInput(amount);
+    }
+});
+
+// Sync DP when unit selection changes in Create Modal
+watch(() => createForm.unit_id, () => {
+    nextTick(() => {
+        if (createTCP.value > 0) {
+            const amount = (createTCP.value * (parseFloat(createForm.dp_percentage) / 100)).toFixed(2);
+            createForm.downpayment_amount = amount;
+            displays.value.createDP = formatPriceInput(amount);
+        }
+    });
 });
 
 // Fetch units when project changes in Create Modal
@@ -135,14 +211,14 @@ watch(selectedProjectId, () => {
 });
 
 const createPriceList = () => {
-    // Final check/restriction before submission
-    createForm.price_per_sqm = restrictNumeric(createForm.price_per_sqm, true, false);
+    createForm.price_per_sqm = unformatPriceInput(displays.value.createPrice);
+    createForm.downpayment_amount = unformatPriceInput(displays.value.createDP);
     
     post(route('price-lists.store'), createForm.data(), {
         onSuccess: () => {
             showCreateModal.value = false;
             createForm.reset();
-            createPriceDisplay.value = '';
+            Object.keys(displays.value).forEach(key => displays.value[key] = '');
             selectedProjectId.value = '';
             availableUnits.value = [];
             showSuccess('Price list created successfully')
@@ -156,21 +232,30 @@ const createPriceList = () => {
 
 const editPriceList = (priceList) => {
     editingPriceList.value = priceList;
+    
+    displays.value.editPrice = formatPriceInput(priceList.price_per_sqm);
     editForm.price_per_sqm = priceList.price_per_sqm;
-    editPriceDisplay.value = formatPriceInput(priceList.price_per_sqm);
+    
+    displays.value.editDP = formatPriceInput(priceList.downpayment_amount);
+    editForm.downpayment_amount = priceList.downpayment_amount;
+
+    const tcp = parseFloat(priceList.tcp || 0);
+    const dp = parseFloat(priceList.downpayment_amount || 0);
+    editForm.dp_percentage = tcp > 0 ? ((dp / tcp) * 100).toFixed(2) : 20;
+
     editForm.effective_date = formatDateForInput(priceList.effective_date);
     showEditModal.value = true;
 };
 
 const updatePriceList = () => {
-    // Final check/restriction before submission
-    editForm.price_per_sqm = restrictNumeric(editForm.price_per_sqm, true, false);
+    editForm.price_per_sqm = unformatPriceInput(displays.value.editPrice);
+    editForm.downpayment_amount = unformatPriceInput(displays.value.editDP);
     
     put(route('price-lists.update', editingPriceList.value.id), editForm.data(), {
         onSuccess: () => {
             showEditModal.value = false;
             editForm.reset();
-            editPriceDisplay.value = '';
+            Object.keys(displays.value).forEach(key => displays.value[key] = '');
             editingPriceList.value = null;
             showSuccess('Price list updated successfully')
         },
@@ -257,6 +342,7 @@ const formatCurrency = (value) => {
                             <tr class="bg-slate-50">
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Unit Details</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Base Price / Sqm</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Downpayment</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Total Contract Price</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Effective Date</th>
                                 <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Actions</th>
@@ -273,13 +359,16 @@ const formatCurrency = (value) => {
                                         <div class="ml-4">
                                             <div class="text-sm font-bold text-slate-900">{{ price.unit?.name || 'Unknown Unit' }}</div>
                                             <div class="text-xs text-slate-500">
-                                                {{ price.unit?.project?.name }} • B{{ price.unit?.block_num }} L{{ price.unit?.lot_num }}
+                                                {{ price.unit?.project?.name }} • B{{ price.unit?.block_num }} L{{ price.unit?.lot_num }} • {{ price.unit?.sqm_area }} sqm
                                             </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm font-mono text-slate-700">{{ formatCurrency(price.price_per_sqm) }}</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="text-sm font-bold text-slate-700">{{ formatCurrency(price.downpayment_amount) }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-col">
@@ -328,10 +417,10 @@ const formatCurrency = (value) => {
         </div>
 
         <!-- Create Price List Modal -->
-        <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+        <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
             <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" @click="showCreateModal = false"></div>
             
-            <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full relative overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full relative overflow-hidden animate-in fade-in zoom-in duration-200 my-auto">
                 <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
                     <h3 class="text-xl font-bold text-slate-900">New Price Entry</h3>
                     <p class="text-sm text-slate-500">Set base price and calculate TCP for a unit.</p>
@@ -353,9 +442,13 @@ const formatCurrency = (value) => {
                         <select v-model="createForm.unit_id" required :disabled="!selectedProjectId || isFetchingUnits" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50">
                             <option value="" disabled>{{ isFetchingUnits ? 'Loading units...' : 'Select a Unit' }}</option>
                             <option v-for="unit in availableUnits" :key="unit.id" :value="unit.id">
-                                B{{ unit.block_num }} L{{ unit.lot_num }} - {{ unit.name }} ({{ unit.sqm_area }} sqm)
+                                B{{ unit.block_num }} L{{ unit.lot_num }} - {{ unit.name }}
                             </option>
                         </select>
+                        <div v-if="selectedUnit" class="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between">
+                            <span class="text-xs font-bold text-blue-600 uppercase tracking-widest">Unit Area</span>
+                            <span class="text-sm font-black text-blue-700">{{ selectedUnit.sqm_area }} sqm</span>
+                        </div>
                          <p v-if="!selectedProjectId" class="text-xs text-slate-400 mt-1">Please select a project first.</p>
                     </div>
 
@@ -366,13 +459,47 @@ const formatCurrency = (value) => {
                                 <span class="text-slate-500 sm:text-sm">₱</span>
                             </div>
                             <input 
-                                :value="createPriceDisplay"
-                                @input="handlePriceInput($event, createForm, createPriceDisplay)"
+                                :value="displays.createPrice"
+                                @input="handlePriceInput($event, createForm, 'price_per_sqm', 'createPrice')"
                                 type="text" 
                                 placeholder="0.00"
                                 required 
                                 class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                             >
+                        </div>
+                        <div class="mt-2 flex items-center justify-between px-1">
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Total Contract Price (Incl. 12% VAT)</span>
+                            <span class="text-sm font-black" :class="createTCP > 0 ? 'text-emerald-600' : 'text-slate-300'">
+                                {{ formatCurrency(createTCP) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">DP %</label>
+                            <div class="relative">
+                                <input v-model="createForm.dp_percentage" type="number" step="0.01" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-700">
+                                <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <span class="text-slate-400 text-xs">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-bold text-slate-700 mb-1">Downpayment (PHP)</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-slate-500 sm:text-sm">₱</span>
+                                </div>
+                                <input 
+                                    :value="displays.createDP"
+                                    @input="handlePriceInput($event, createForm, 'downpayment_amount', 'createDP')"
+                                    type="text" 
+                                    placeholder="0.00"
+                                    required 
+                                    class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                >
+                            </div>
                         </div>
                     </div>
 
@@ -398,13 +525,16 @@ const formatCurrency = (value) => {
         </div>
 
         <!-- Edit Price List Modal -->
-        <div v-if="showEditModal" class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+        <div v-if="showEditModal" class="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
             <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" @click="showEditModal = false"></div>
             
-            <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full relative overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full relative overflow-hidden animate-in fade-in zoom-in duration-200 my-auto">
                 <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
                     <h3 class="text-xl font-bold text-slate-900">Update Price</h3>
                     <p class="text-sm text-slate-500">Modify pricing for <strong>B{{ editingPriceList?.unit?.block_num }} L{{ editingPriceList?.unit?.lot_num }}</strong>.</p>
+                    <div class="mt-2 inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-black uppercase tracking-wider border border-blue-100">
+                        Area: {{ editingPriceList?.unit?.sqm_area }} sqm
+                    </div>
                 </div>
                 
                 <form @submit.prevent="updatePriceList" class="p-8 space-y-5">
@@ -415,13 +545,47 @@ const formatCurrency = (value) => {
                                 <span class="text-slate-500 sm:text-sm">₱</span>
                             </div>
                             <input 
-                                :value="editPriceDisplay"
-                                @input="handlePriceInput($event, editForm, editPriceDisplay)"
+                                :value="displays.editPrice"
+                                @input="handlePriceInput($event, editForm, 'price_per_sqm', 'editPrice')"
                                 type="text" 
                                 placeholder="0.00"
                                 required 
                                 class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                             >
+                        </div>
+                        <div class="mt-2 flex items-center justify-between px-1">
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Total Contract Price (Incl. 12% VAT)</span>
+                            <span class="text-sm font-black" :class="editTCP > 0 ? 'text-emerald-600' : 'text-slate-300'">
+                                {{ formatCurrency(editTCP) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">DP %</label>
+                            <div class="relative">
+                                <input v-model="editForm.dp_percentage" type="number" step="0.01" class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-700">
+                                <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <span class="text-slate-400 text-xs">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-bold text-slate-700 mb-1">Downpayment (PHP)</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-slate-500 sm:text-sm">₱</span>
+                                </div>
+                                <input 
+                                    :value="displays.editDP"
+                                    @input="handlePriceInput($event, editForm, 'downpayment_amount', 'editDP')"
+                                    type="text" 
+                                    placeholder="0.00"
+                                    required 
+                                    class="block w-full pl-7 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                >
+                            </div>
                         </div>
                     </div>
 
