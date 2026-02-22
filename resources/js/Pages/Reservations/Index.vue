@@ -144,7 +144,7 @@ const updateReservation = () => {
 const showCancelModal = ref(false);
 const cancellingReservation = ref(null);
 const cancelForm = useForm({
-    action: 'Refund',
+    action: 'Forfeit',
     reference_no: '',
 });
 
@@ -156,6 +156,17 @@ const contractForm = useForm({
     amortization_terms: 12,
     interest_rate: 7,
     start_date: formatDateForInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+});
+
+// Watch for plan type changes to reset fields
+watch(() => contractForm.plan_type, (newType) => {
+    if (newType === 'Spot Cash') {
+        contractForm.amortization_terms = 1;
+        contractForm.interest_rate = 0;
+    } else {
+        contractForm.amortization_terms = 12;
+        contractForm.interest_rate = 7;
+    }
 });
 
 // NEW: Record Additional Payment (for DP)

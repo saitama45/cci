@@ -14,7 +14,9 @@ import {
     CalendarIcon,
     DocumentIcon,
     EyeIcon,
-    ArrowDownTrayIcon
+    ArrowDownTrayIcon,
+    HomeIcon,
+    ChevronRightIcon
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -138,15 +140,77 @@ const getCustomerDocument = (requirementId) => {
                     </div>
                 </div>
 
-                <!-- Placeholder for future sections like Transactions/History -->
+                <!-- Profile Details & History -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
-                        <h3 class="text-lg font-bold text-slate-800 mb-4">Purchase History</h3>
-                        <div class="py-12 flex flex-col items-center justify-center text-slate-400">
-                            <CalendarIcon class="w-12 h-12 mb-2 opacity-20" />
-                            <p class="text-sm font-medium">No transactions recorded yet.</p>
+                    <!-- Purchase History Section -->
+                    <div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                                <HomeIcon class="w-5 h-5 mr-2 text-emerald-600" />
+                                Purchase History
+                            </h3>
+                            <span class="px-2 py-0.5 bg-slate-100 text-[10px] font-black text-slate-500 rounded-md uppercase tracking-widest">
+                                {{ (customer.contracted_sales?.length || 0) + (customer.reservations?.filter(r => r.status === 'Active').length || 0) }} Units
+                            </span>
+                        </div>
+                        
+                        <div class="space-y-4 flex-grow">
+                            <!-- Show Contracted Sales First -->
+                            <div v-for="sale in customer.contracted_sales" :key="'sale-'+sale.id" 
+                                class="p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 group hover:bg-emerald-50 transition-all">
+                                <div class="flex justify-between items-start">
+                                    <div class="min-w-0">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-sm font-black text-slate-900 truncate">{{ sale.unit?.name }}</span>
+                                            <span class="px-1.5 py-0.5 bg-emerald-600 text-[8px] font-black text-white rounded uppercase tracking-tighter">Contracted</span>
+                                        </div>
+                                        <p class="text-[10px] text-emerald-600 font-bold uppercase tracking-tight">{{ sale.unit?.project?.name }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase">Contract Price</p>
+                                        <p class="text-sm font-black text-slate-900">{{ new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(sale.tcp) }}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-3 pt-3 border-t border-emerald-100/50 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">No: {{ sale.contract_no }}</span>
+                                    <Link :href="route('payments.show', sale.id)" class="text-[10px] font-black text-emerald-600 hover:text-emerald-700 flex items-center">
+                                        View Ledger <ChevronRightIcon class="w-3 h-3 ml-1" />
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <!-- Show Active Reservations -->
+                            <div v-for="res in customer.reservations?.filter(r => r.status === 'Active')" :key="'res-'+res.id" 
+                                class="p-4 rounded-xl border border-blue-100 bg-blue-50/20 group hover:bg-blue-50 transition-all">
+                                <div class="flex justify-between items-start">
+                                    <div class="min-w-0">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-sm font-black text-slate-900 truncate">{{ res.unit?.name }}</span>
+                                            <span class="px-1.5 py-0.5 bg-blue-600 text-[8px] font-black text-white rounded uppercase tracking-tighter">Reserved</span>
+                                        </div>
+                                        <p class="text-[10px] text-blue-600 font-bold uppercase tracking-tight">{{ res.unit?.project?.name }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase">Reservation Fee</p>
+                                        <p class="text-sm font-black text-slate-900">{{ new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(res.fee) }}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-3 pt-3 border-t border-blue-100/50 flex items-center justify-between text-[10px]">
+                                    <span class="font-bold text-slate-500 uppercase tracking-widest">Expiry: {{ new Date(res.expiry_date).toLocaleDateString() }}</span>
+                                    <span class="font-black text-blue-600 uppercase tracking-widest">Pending Downpayment</span>
+                                </div>
+                            </div>
+
+                            <!-- Empty State -->
+                            <div v-if="(!customer.contracted_sales?.length) && (!customer.reservations?.filter(r => r.status === 'Active').length)" 
+                                class="py-12 flex flex-col items-center justify-center text-slate-400">
+                                <HomeIcon class="w-12 h-12 mb-2 opacity-20" />
+                                <p class="text-sm font-medium">No active units or contracts.</p>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Documents Section -->
                     <div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
                         <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center">
                             <DocumentIcon class="w-5 h-5 mr-2 text-blue-600" />

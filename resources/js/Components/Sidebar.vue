@@ -12,7 +12,9 @@ import {
     ClipboardDocumentCheckIcon,
     CurrencyDollarIcon,
     MapIcon,
-    UserIcon
+    UserIcon,
+    ClockIcon,
+    ChartPieIcon
 } from '@heroicons/vue/24/outline';
 import { usePermission } from '@/Composables/usePermission';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
@@ -438,6 +440,52 @@ const handleMouseLeave = () => {
                             ]"
                         />
                         <span v-if="!isCollapsed" class="font-medium text-sm">General Ledger</span>
+                    </Link>
+
+                    <!-- Aging Report -->
+                    <Link
+                        v-if="hasPermission('accounting.view')"
+                        :href="route('accounting.aging-report')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('accounting.aging-report')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Aging Report')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ClockIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('accounting.aging-report') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Aging Report</span>
+                    </Link>
+
+                    <!-- Overall Receivables -->
+                    <Link
+                        v-if="hasPermission('accounting.view')"
+                        :href="route('accounting.overall-receivables')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('accounting.overall-receivables')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Overall Receivables')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ChartPieIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('accounting.overall-receivables') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Overall Receivables</span>
                     </Link>
                  </template>
 

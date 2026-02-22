@@ -27,6 +27,8 @@ const props = defineProps({
     payment_methods: Array,
 });
 
+const showReceiptsModal = ref(false);
+
 const { showSuccess, showError } = useToast();
 const { formatDateDisplay, restrictNumeric, formatNumberWithCommas, stripCommas, formatDateForInput } = useInputRestriction();
 
@@ -131,6 +133,13 @@ const totalOutstanding = computed(() => {
     }, 0);
 });
 
+const totalPaid = computed(() => {
+    if (!props.contract.payments) return 0;
+    return props.contract.payments
+        .filter(p => p.payment_type === 'Amortization')
+        .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+});
+
 const groupedSchedules = computed(() => {
     if (!props.contract.payment_schedules) return [];
     
@@ -182,7 +191,7 @@ const groupedSchedules = computed(() => {
             <div class="max-w-[1600px] mx-auto sm:px-6 lg:px-8 space-y-6">
                 
                 <!-- Quick Info Dashboard -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center space-x-4">
                         <div class="p-3 bg-blue-50 rounded-2xl">
                             <UserCircleIcon class="w-6 h-6 text-blue-600" />
@@ -214,11 +223,37 @@ const groupedSchedules = computed(() => {
                     </div>
 
                     <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                        <div class="p-3 bg-slate-900 rounded-2xl">
+                            <CurrencyDollarIcon class="w-6 h-6 text-white" />
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Total Contract Price</p>
+                            <h4 class="text-sm font-black text-slate-900 truncate">{{ formatCurrency(contract.tcp) }}</h4>
+                        </div>
+                    </div>
+
+                    <div 
+                        @click="showReceiptsModal = true"
+                        class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center space-x-4 cursor-pointer hover:border-emerald-200 hover:bg-emerald-50/10 transition-all group"
+                    >
+                        <div class="p-3 bg-emerald-600 rounded-2xl group-hover:scale-110 transition-transform">
+                            <CheckCircleIcon class="w-6 h-6 text-white" />
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center">
+                                Total Amort Paid
+                                <span class="ml-2 text-[8px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded uppercase">Click to view</span>
+                            </p>
+                            <h4 class="text-sm font-black text-emerald-600 truncate">{{ formatCurrency(totalPaid) }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center space-x-4">
                         <div class="p-3 bg-rose-50 rounded-2xl">
                             <BanknotesIcon class="w-6 h-6 text-rose-600" />
                         </div>
                         <div class="min-w-0">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Outstanding Balance</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Total Outstanding</p>
                             <h4 class="text-sm font-black text-rose-600 truncate">{{ formatCurrency(totalOutstanding) }}</h4>
                         </div>
                     </div>
@@ -342,16 +377,16 @@ const groupedSchedules = computed(() => {
                                         <span class="text-xs font-bold text-indigo-300 uppercase tracking-widest">Receipt Summary</span>
                                     </div>
                                     <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Total Collection Amount</p>
-                                    <h3 class="text-4xl font-black tracking-tight">{{ formatCurrency(form.amount) }}</h3>
+                                    <h3 class="text-2xl md:text-3xl xl:text-4xl font-black tracking-tight break-words">{{ formatCurrency(form.amount) }}</h3>
                                     
-                                    <div class="mt-6 pt-6 border-t border-white/10 flex items-center justify-between">
-                                        <div>
+                                    <div class="mt-6 pt-6 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
+                                        <div class="min-w-0">
                                             <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Items Selected</p>
-                                            <p class="text-sm font-black">{{ form.schedule_ids.length }} Installments</p>
+                                            <p class="text-sm font-black truncate">{{ form.schedule_ids.length }} Installments</p>
                                         </div>
-                                        <div class="text-right">
+                                        <div class="text-right ml-auto">
                                             <p class="text-[10px] font-bold text-white/50 uppercase tracking-widest">Type</p>
-                                            <p class="text-sm font-black">Amortization</p>
+                                            <p class="text-sm font-black uppercase">Amort</p>
                                         </div>
                                     </div>
                                 </div>
@@ -406,6 +441,58 @@ const groupedSchedules = computed(() => {
                             </form>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Receipts Modal -->
+        <div v-if="showReceiptsModal" class="fixed inset-0 z-[60] overflow-y-auto flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4">
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showReceiptsModal = false"></div>
+            
+            <div class="bg-white rounded-[2.5rem] shadow-2xl max-w-2xl w-full relative animate-in fade-in zoom-in duration-200 my-auto overflow-hidden">
+                <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-black text-slate-900">Payment History</h3>
+                        <p class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">Summary of all collections for this contract</p>
+                    </div>
+                    <button @click="showReceiptsModal = false" class="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                        <ArrowLeftIcon class="w-5 h-5 text-slate-400 rotate-90" />
+                    </button>
+                </div>
+
+                <div class="p-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    <div v-if="!contract.payments?.filter(p => p.payment_type === 'Amortization').length" class="text-center py-12">
+                        <BanknotesIcon class="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                        <p class="text-slate-400 font-bold">No amortization payments recorded yet.</p>
+                    </div>
+                    <div v-else class="space-y-4">
+                        <div v-for="payment in contract.payments.filter(p => p.payment_type === 'Amortization')" :key="payment.id" class="p-5 rounded-3xl border border-slate-100 hover:border-emerald-200 transition-all flex items-center justify-between group">
+                            <div class="flex items-center space-x-4">
+                                <div class="p-3 bg-emerald-50 rounded-2xl group-hover:bg-emerald-600 transition-colors">
+                                    <CheckCircleIcon class="w-5 h-5 text-emerald-600 group-hover:text-white" />
+                                </div>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-sm font-black text-slate-900">{{ payment.reference_no }}</span>
+                                        <span class="px-1.5 py-0.5 bg-slate-100 text-[8px] font-black text-slate-500 rounded uppercase tracking-tighter">{{ payment.payment_method }}</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{{ formatDateDisplay(payment.payment_date) }}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-black text-emerald-600">{{ formatCurrency(payment.amount) }}</div>
+                                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{{ payment.payment_type }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lifetime Collections</p>
+                        <h4 class="text-lg font-black text-slate-900">{{ formatCurrency(totalPaid) }}</h4>
+                    </div>
+                    <button @click="showReceiptsModal = false" class="px-6 py-2.5 bg-slate-900 text-white text-xs font-black rounded-xl hover:bg-slate-800 transition-all">Close History</button>
                 </div>
             </div>
         </div>

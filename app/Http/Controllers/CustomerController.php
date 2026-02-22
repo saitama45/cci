@@ -36,7 +36,11 @@ class CustomerController extends Controller
 
     public function show(Customer $customer)
     {
-        $customer->load('documents.requirement');
+        $customer->load([
+            'documents.requirement',
+            'reservations.unit.project',
+            'contractedSales.unit.project'
+        ]);
         $requirements = DocumentRequirement::where('status', true)->orderBy('sort_order')->get();
 
         return Inertia::render('Customers/Show', [

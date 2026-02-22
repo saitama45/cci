@@ -47,6 +47,10 @@ Route::middleware('auth')->group(function () {
             Route::get('accounting/trial-balance/export', [\App\Http\Controllers\AccountingReportController::class, 'exportTrialBalance'])->name('accounting.trial-balance.export');
             Route::get('accounting/general-ledger', [\App\Http\Controllers\AccountingReportController::class, 'generalLedger'])->name('accounting.general-ledger');
             Route::get('accounting/general-ledger/export', [\App\Http\Controllers\AccountingReportController::class, 'exportGeneralLedger'])->name('accounting.general-ledger.export');
+            Route::get('accounting/aging-report', [\App\Http\Controllers\AccountingReportController::class, 'agingReport'])->name('accounting.aging-report');
+            Route::get('accounting/aging-report/export', [\App\Http\Controllers\AccountingReportController::class, 'exportAgingReport'])->name('accounting.aging-report.export');
+            Route::get('accounting/overall-receivables', [\App\Http\Controllers\AccountingReportController::class, 'overallReceivables'])->name('accounting.overall-receivables');
+            Route::get('accounting/overall-receivables/export', [\App\Http\Controllers\AccountingReportController::class, 'exportOverallReceivables'])->name('accounting.overall-receivables.export');
 
             Route::get('/api/projects/{project}/units', [\App\Http\Controllers\UnitController::class, 'getUnitsByProject'])->name('api.projects.units'); 
          

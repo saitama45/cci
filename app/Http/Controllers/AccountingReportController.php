@@ -211,6 +211,266 @@ class AccountingReportController extends Controller
         return $pdf->stream('general-ledger-' . $startDate . '-to-' . $endDate . '.pdf');
     }
 
+    /**
+     * Aging Report: Shows overdue payments categorized by age.
+     */
+    public function agingReport(Request $request)
+    {
+        $asOfDate = $request->as_of_date ?: now()->format('Y-m-d');
+        $data = $this->getAgingReportData($asOfDate);
+
+        return Inertia::render('Accounting/AgingReport', [
+            'report_data' => $data['report_data'],
+            'filters' => [
+                'as_of_date' => $asOfDate,
+            ],
+            'totals' => $data['totals']
+        ]);
+    }
+
+    /**
+     * Overall Receivables Summary Report
+     */
+    public function overallReceivables(Request $request)
+    {
+        $asOfDate = $request->as_of_date ?: now()->format('Y-m-d');
+        $data = $this->getOverallReceivablesData($asOfDate);
+
+        return Inertia::render('Accounting/OverallReceivables', [
+            'outstanding_report' => $data['outstanding_report'],
+            'installment_report' => $data['installment_report'],
+            'filters' => ['as_of_date' => $asOfDate],
+            'summary' => $data['summary']
+        ]);
+    }
+
+    public function exportOverallReceivables(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        $company = \App\Models\Company::find($companyId);
+        
+        $asOfDate = $request->as_of_date ?: now()->format('Y-m-d');
+        $data = $this->getOverallReceivablesData($asOfDate);
+        
+        $pdf = Pdf::loadView('pdf.overall-receivables', [
+            'outstanding_report' => $data['outstanding_report'],
+            'installment_report' => $data['installment_report'],
+            'summary' => $data['summary'],
+            'asOfDate' => $asOfDate,
+            'company' => $company,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->stream('overall-receivables-' . $asOfDate . '.pdf');
+    }
+
+    private function getOverallReceivablesData($asOfDate)
+    {
+        $asOf = \Carbon\Carbon::parse($asOfDate)->endOfDay();
+        $companyId = Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
+
+        $contracts = \App\Models\ContractedSale::with(['customer', 'paymentSchedules'])
+            ->where('company_id', $companyId)
+            ->where('status', 'Active')
+            ->get();
+
+        // 1. Initialize Buckets
+        $outstandingBuckets = [
+            'Not Yet Due' => ['amount' => 0, 'count' => 0],
+            'CURRENT'     => ['amount' => 0, 'count' => 0],
+            '31-60'       => ['amount' => 0, 'count' => 0],
+            '61-90'       => ['amount' => 0, 'count' => 0],
+            '91-120'      => ['amount' => 0, 'count' => 0],
+            '121-OVER'    => ['amount' => 0, 'count' => 0],
+        ];
+
+        $installmentBuckets = [
+            'CURRENT'     => ['amount' => 0, 'count' => 0],
+            '31-60'       => ['amount' => 0, 'count' => 0],
+            '61-90'       => ['amount' => 0, 'count' => 0],
+            '91-120'      => ['amount' => 0, 'count' => 0],
+            '121-OVER'    => ['amount' => 0, 'count' => 0],
+        ];
+
+        foreach ($contracts as $contract) {
+            $totalBalance = 0;
+            $maxDaysOverdue = 0;
+            $hasOverdue = false;
+
+            // Analyze schedules for this contract
+            foreach ($contract->paymentSchedules as $s) {
+                if ($s->type !== 'Amortization') continue;
+                
+                $unpaid = (float)$s->amount_due - (float)$s->amount_paid;
+                if ($unpaid <= 0) continue;
+
+                $totalBalance += $unpaid;
+                $dueDate = \Carbon\Carbon::parse($s->due_date);
+
+                if ($dueDate->isBefore($asOf)) {
+                    $hasOverdue = true;
+                    $days = $dueDate->diffInDays($asOf);
+                    if ($days > $maxDaysOverdue) $maxDaysOverdue = $days;
+
+                    // Aggregate Installment Due directly into buckets
+                    $instKey = $this->getAgingKey($days, false);
+                    $installmentBuckets[$instKey]['amount'] += $unpaid;
+                    $installmentBuckets[$instKey]['count']++;
+                }
+            }
+
+            if ($totalBalance <= 0) continue;
+
+            // Outstanding Balance Report: Group the WHOLE balance of the account into its worst bucket
+            $obKey = $hasOverdue ? $this->getAgingKey($maxDaysOverdue, false) : 'Not Yet Due';
+            $outstandingBuckets[$obKey]['amount'] += $totalBalance;
+            $outstandingBuckets[$obKey]['count']++;
+        }
+
+        // Calculate Totals
+        $totalOB = array_sum(array_column($outstandingBuckets, 'amount'));
+        $totalInst = array_sum(array_column($installmentBuckets, 'amount'));
+
+        return [
+            'outstanding_report' => $outstandingBuckets,
+            'installment_report' => $installmentBuckets,
+            'summary' => [
+                'total_outstanding' => $totalOB,
+                'total_installment' => $totalInst,
+                'outstanding_accounts' => array_sum(array_column($outstandingBuckets, 'count')),
+                'installment_accounts' => array_sum(array_column($installmentBuckets, 'count')),
+            ]
+        ];
+    }
+
+    private function getAgingKey($days, $includeNotYetDue = true)
+    {
+        if ($days <= 0) return $includeNotYetDue ? 'Not Yet Due' : 'CURRENT';
+        if ($days <= 30) return 'CURRENT';
+        if ($days <= 60) return '31-60';
+        if ($days <= 90) return '61-90';
+        if ($days <= 120) return '91-120';
+        return '121-OVER';
+    }
+
+    public function exportAgingReport(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        $company = \App\Models\Company::find($companyId);
+        
+        $asOfDate = $request->as_of_date ?: now()->format('Y-m-d');
+        $data = $this->getAgingReportData($asOfDate);
+        
+        $pdf = Pdf::loadView('pdf.aging-report', [
+            'reportData' => $data['report_data'],
+            'totals' => $data['totals'],
+            'asOfDate' => $asOfDate,
+            'company' => $company,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->stream('aging-report-as-of-' . $asOfDate . '.pdf');
+    }
+
+    private function getAgingReportData($asOfDate)
+    {
+        $user = Auth::user();
+        $companyId = $user->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        $asOf = \Carbon\Carbon::parse($asOfDate)->endOfDay();
+
+        $contracts = \App\Models\ContractedSale::with(['customer', 'unit.project', 'paymentSchedules', 'payments'])
+            ->where('company_id', $companyId)
+            ->where('status', 'Active')
+            ->get();
+
+        $reportData = $contracts->map(function ($contract) use ($asOf) {
+            // Only process Amortization schedules
+            $schedules = $contract->paymentSchedules->where('type', 'Amortization');
+            
+            // Only consider Amortization payments for last pay date
+            $lastAmortPayment = $contract->payments
+                ->where('payment_type', 'Amortization')
+                ->sortByDesc('payment_date')
+                ->first();
+            
+            $aging = [
+                'not_yet_due' => 0,
+                '1_30' => 0,
+                '31_60' => 0,
+                '61_90' => 0,
+                '91_120' => 0,
+                '120_over' => 0,
+                'total_due' => 0,
+                'outstanding_balance' => 0,
+                'max_days_overdue' => 0,
+            ];
+
+            foreach ($schedules as $s) {
+                $unpaid = (float)$s->amount_due - (float)$s->amount_paid;
+                if ($unpaid <= 0) continue;
+
+                $aging['outstanding_balance'] += $unpaid;
+                
+                $dueDate = \Carbon\Carbon::parse($s->due_date);
+                
+                if ($dueDate->isAfter($asOf)) {
+                    $aging['not_yet_due'] += $unpaid;
+                } else {
+                    $daysOverdue = (int) $dueDate->diffInDays($asOf);
+                    $aging['total_due'] += $unpaid;
+                    
+                    if ($daysOverdue > $aging['max_days_overdue']) {
+                        $aging['max_days_overdue'] = $daysOverdue;
+                    }
+
+                    if ($daysOverdue <= 30) $aging['1_30'] += $unpaid;
+                    elseif ($daysOverdue <= 60) $aging['31_60'] += $unpaid;
+                    elseif ($daysOverdue <= 90) $aging['61_90'] += $unpaid;
+                    elseif ($daysOverdue <= 120) $aging['91_120'] += $unpaid;
+                    else $aging['120_over'] += $unpaid;
+                }
+            }
+
+            $bracket = 'Current';
+            if ($aging['max_days_overdue'] > 120) $bracket = '120+ Over';
+            elseif ($aging['max_days_overdue'] > 90) $bracket = '91-120 Days';
+            elseif ($aging['max_days_overdue'] > 60) $bracket = '61-90 Days';
+            elseif ($aging['max_days_overdue'] > 30) $bracket = '31-60 Days';
+            elseif ($aging['max_days_overdue'] > 0) $bracket = '1-30 Days';
+
+            return (object)[
+                'contract_id' => $contract->id,
+                'customer_name' => $contract->customer->full_name,
+                'unit_name' => $contract->unit->name . ' (' . ($contract->unit->project->name ?? 'N/A') . ')',
+                'last_pay_date' => $lastAmortPayment ? $lastAmortPayment->payment_date->format('Y-m-d') : 'No Payment',
+                'not_yet_due' => $aging['not_yet_due'],
+                '1_30' => $aging['1_30'],
+                '31_60' => $aging['31_60'],
+                '61_90' => $aging['61_90'],
+                '91_120' => $aging['91_120'],
+                '120_over' => $aging['120_over'],
+                'total_due' => $aging['total_due'],
+                'outstanding_balance' => $aging['outstanding_balance'],
+                'aging_days' => (int) $aging['max_days_overdue'],
+                'aging_bracket' => $bracket
+            ];
+        })->filter(fn($r) => $r->outstanding_balance > 0)->values();
+
+        return [
+            'report_data' => $reportData,
+            'totals' => [
+                'not_yet_due' => $reportData->sum('not_yet_due'),
+                '1_30' => $reportData->sum('1_30'),
+                '31_60' => $reportData->sum('31_60'),
+                '61_90' => $reportData->sum('61_90'),
+                '91_120' => $reportData->sum('91_120'),
+                '120_over' => $reportData->sum('120_over'),
+                'total_due' => $reportData->sum('total_due'),
+                'outstanding_balance' => $reportData->sum('outstanding_balance'),
+            ]
+        ];
+    }
+
     private function getGeneralLedgerData($companyId, $startDate, $endDate, $accountId = null)
     {
         // 1. Calculate Beginning Balances

@@ -56,6 +56,16 @@ class Customer extends Model
         return $this->hasMany(CustomerDocument::class);
     }
 
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class);
+    }
+
+    public function contractedSales()
+    {
+        return $this->hasMany(ContractedSale::class);
+    }
+
     public function getFullNameAttribute()
     {
         $middle = $this->middle_name ? " {$this->middle_name} " : " ";

@@ -253,9 +253,17 @@ class ReservationController extends Controller
             $tcp = (float) $priceList->tcp;
             $dpPaid = (float) $reservation->total_paid;
             $loanableAmount = $tcp - $dpPaid;
-            $annualInterest = (float) $validated['interest_rate'] / 100;
+            
+            // Fix: Force 1 term and 0 interest for Spot Cash
+            if ($validated['plan_type'] === 'Spot Cash') {
+                $terms = 1;
+                $annualInterest = 0;
+            } else {
+                $terms = (int) ($validated['amortization_terms'] ?? 1);
+                $annualInterest = (float) $validated['interest_rate'] / 100;
+            }
+
             $monthlyInterest = $annualInterest / 12;
-            $terms = (int) ($validated['amortization_terms'] ?? 1);
             
             // Calculate Monthly Amortization (Standard formula)
             // MA = P * [ i(1+i)^n ] / [ (1+i)^n - 1 ]
@@ -287,10 +295,10 @@ class ReservationController extends Controller
             $reservation->update(['status' => 'Contracted']);
             $reservation->unit->update(['status' => 'Sold']);
 
-            // Accounting revenue recognition
+            // Accounting revenue recognition - Fix: recognize Total Paid (Fee + DP)
             $payment = $reservation->payments()->first();
             $referenceNo = $payment ? $payment->reference_no : null;
-            $this->accountingService->recognizeRevenueFromReservation($reservation, $reservation->fee, $referenceNo);
+            $this->accountingService->recognizeRevenueFromReservation($reservation, $reservation->total_paid, $referenceNo);
 
             // Generate Payment Schedule with breakdown
             $startDate = \Carbon\Carbon::parse($validated['start_date']);

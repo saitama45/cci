@@ -53,6 +53,7 @@ class PaymentController extends Controller
         $contract = \App\Models\ContractedSale::with([
             'customer', 
             'unit.project',
+            'payments',
             'paymentSchedules' => fn($q) => $q->orderBy('due_date', 'asc')
         ])->findOrFail($id);
 
