@@ -13,6 +13,7 @@ class Payment extends Model
         'company_id',
         'customer_id',
         'reservation_id',
+        'payment_type',
         'amount',
         'payment_date',
         'payment_method',

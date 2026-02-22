@@ -28,6 +28,7 @@ const props = defineProps({
         type: String,
         default: 'Search...',
     },
+    class: [String, Object, Array],
 });
 
 const emit = defineEmits(['update:modelValue', 'change']);
@@ -109,7 +110,7 @@ onUnmounted(() => {
             @click="toggle"
             :disabled="disabled"
             class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-left cursor-default focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all duration-200"
-            :class="{ 'opacity-60 cursor-not-allowed': disabled, 'hover:border-slate-300': !disabled }"
+            :class="[props.class, { 'opacity-60 cursor-not-allowed': disabled, 'hover:border-slate-300': !disabled }]"
         >
             <div class="flex items-center justify-between">
                 <span class="block truncate font-semibold" :class="selectedOption ? 'text-slate-700' : 'text-slate-400'">

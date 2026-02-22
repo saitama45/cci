@@ -11,24 +11,55 @@ use Illuminate\Support\Facades\Auth;
 class AccountingService
 {
     /**
-     * Records a reservation fee receipt.
-     * Debit: Cash/Bank (Asset)
-     * Credit: Reservation Fees Payable (Liability)
+     * Records a generic payment receipt.
+     * Handles Reservation, Downpayment, and Amortization.
      */
-    public function recordReservationFeeReceipt($payment)
+    public function recordGeneralPaymentReceipt($payment, $principal = 0, $interest = 0)
     {
-        return DB::transaction(function () use ($payment) {
+        return DB::transaction(function () use ($payment, $principal, $interest) {
             $companyId = $payment->company_id;
+            $type = $payment->payment_type;
 
-            // 1. Get Accounts
+            // 1. Get Base Accounts
             $cashAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '1010')->first();
-            $liabilityAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '2200')->first();
-
-            if (!$cashAccount || !$liabilityAccount) {
-                throw new \Exception("Accounting accounts not found for company {$companyId}. Please ensure codes 1010 and 2200 exist in the Chart of Accounts.");
+            
+            if (!$cashAccount) {
+                throw new \Exception("Cash account (1010) not found.");
             }
 
-            // 2. Create Journal Entry Header
+            // 2. Determine Credit Accounts based on Type
+            $creditLines = [];
+            $description = "{$type} Receipt from " . ($payment->customer->full_name ?? 'Customer');
+
+            if ($type === 'Amortization') {
+                $revenueAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '4100')->first();
+                $interestAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '4300')->first();
+
+                if ($principal > 0) {
+                    $creditLines[] = [
+                        'account_id' => $revenueAccount->id,
+                        'amount' => $principal,
+                        'memo' => 'Principal portion of amortization'
+                    ];
+                }
+                if ($interest > 0) {
+                    $creditLines[] = [
+                        'account_id' => $interestAccount->id,
+                        'amount' => $interest,
+                        'memo' => 'Interest portion of amortization'
+                    ];
+                }
+            } else {
+                // Reservation or Downpayment goes to Liability
+                $liabilityAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '2200')->first();
+                $creditLines[] = [
+                    'account_id' => $liabilityAccount->id,
+                    'amount' => $payment->amount,
+                    'memo' => "Customer deposit for {$type}"
+                ];
+            }
+
+            // 3. Create Journal Entry Header
             $journalEntry = JournalEntry::create([
                 'company_id' => $companyId,
                 'user_id' => Auth::id(),
@@ -36,33 +67,43 @@ class AccountingService
                 'reference_no' => $payment->reference_no,
                 'referenceable_type' => get_class($payment),
                 'referenceable_id' => $payment->id,
-                'description' => "Reservation Fee Receipt from " . ($payment->customer->full_name ?? 'Customer'),
+                'description' => $description,
             ]);
 
-            // 3. Create Journal Entry Lines
-            // Debit Cash
+            // 4. Create Journal Entry Lines
+            // Debit Cash (Total Amount)
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $cashAccount->id,
                 'debit' => $payment->amount,
                 'credit' => 0,
-                'memo' => 'Receipt of reservation fee',
+                'memo' => "Receipt of {$type}",
             ]);
 
-            // Credit Liability
-            JournalEntryLine::create([
-                'journal_entry_id' => $journalEntry->id,
-                'chart_of_account_id' => $liabilityAccount->id,
-                'debit' => 0,
-                'credit' => $payment->amount,
-                'memo' => 'Customer deposit for reservation',
-            ]);
+            // Create Credit Lines
+            foreach ($creditLines as $line) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journalEntry->id,
+                    'chart_of_account_id' => $line['account_id'],
+                    'debit' => 0,
+                    'credit' => $line['amount'],
+                    'memo' => $line['memo'],
+                ]);
+            }
 
-            // 4. Update Payment with Journal Entry ID
+            // 5. Update Payment with Journal Entry ID
             $payment->update(['journal_entry_id' => $journalEntry->id]);
 
             return $journalEntry;
         });
+    }
+
+    /**
+     * Records a reservation fee receipt (Legacy wrapper).
+     */
+    public function recordReservationFeeReceipt($payment)
+    {
+        return $this->recordGeneralPaymentReceipt($payment);
     }
 
     /**

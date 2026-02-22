@@ -27,6 +27,8 @@ Route::middleware('auth')->group(function () {
             Route::resource('customers', CustomerController::class);
             Route::resource('brokers', \App\Http\Controllers\BrokerController::class);
             Route::resource('reservations', ReservationController::class);
+            Route::resource('contracted-sales', \App\Http\Controllers\ContractedSalesController::class)->only(['index', 'show']);
+            Route::post('contracted-sales/{id}/reprice', [\App\Http\Controllers\ContractedSalesController::class, 'reprice'])->name('contracted-sales.reprice');
             Route::post('reservations/{reservation}/contract', [ReservationController::class, 'contract'])->name('reservations.contract');
             Route::post('reservations/{reservation}/cancel-accounting', [ReservationController::class, 'cancel'])->name('reservations.cancel-accounting');
             Route::post('reservations/{reservation}/record-payment', [ReservationController::class, 'recordPayment'])->name('reservations.record-payment');
@@ -36,6 +38,8 @@ Route::middleware('auth')->group(function () {
             // Accounting & Finance
             Route::resource('journal-entries', \App\Http\Controllers\JournalEntryController::class);
             Route::resource('payments', \App\Http\Controllers\PaymentController::class);
+            Route::get('api/customers/{customer}/contracts', [\App\Http\Controllers\PaymentController::class, 'getCustomerContracts'])->name('api.customers.contracts');
+            Route::get('api/contracts/{contract}/schedules', [\App\Http\Controllers\PaymentController::class, 'getContractSchedules'])->name('api.contracts.schedules');
             Route::resource('chart-of-accounts', \App\Http\Controllers\ChartOfAccountController::class);
 
             // Accounting Reports

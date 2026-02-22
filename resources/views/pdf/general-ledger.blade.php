@@ -48,6 +48,12 @@
                     </tr>
                 </thead>
                 <tbody>
+                    <tr>
+                        <td colspan="3" class="font-bold">BEGINNING BALANCE</td>
+                        <td class="text-right">-</td>
+                        <td class="text-right">-</td>
+                        <td class="text-right font-bold">{{ number_format($data['beginning_balance'], 2) }}</td>
+                    </tr>
                     @foreach($data['lines'] as $line)
                         <tr>
                             <td>{{ date('Y-m-d', strtotime($line->journalEntry->transaction_date)) }}</td>

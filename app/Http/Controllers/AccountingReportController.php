@@ -114,10 +114,11 @@ class AccountingReportController extends Controller
         $startDate = $request->start_date ?: now()->startOfMonth()->format('Y-m-d');
         $endDate = $request->end_date ?: now()->endOfMonth()->format('Y-m-d');
         
-        $lines = $this->getGeneralLedgerData($companyId, $startDate, $endDate, $request->account_id);
+        $data = $this->getGeneralLedgerData($companyId, $startDate, $endDate, $request->account_id);
 
         return Inertia::render('Accounting/GeneralLedger', [
-            'ledger_lines' => $lines,
+            'ledger_lines' => $data['lines'],
+            'beginning_balances' => $data['beginning_balances'],
             'accounts' => ChartOfAccount::where('company_id', $companyId)->get(),
             'filters' => [
                 'account_id' => $request->account_id,
@@ -136,19 +137,27 @@ class AccountingReportController extends Controller
         $startDate = $request->start_date ?: now()->startOfMonth()->format('Y-m-d');
         $endDate = $request->end_date ?: now()->endOfMonth()->format('Y-m-d');
         
-        $lines = $this->getGeneralLedgerData($companyId, $startDate, $endDate, $request->account_id);
+        $data = $this->getGeneralLedgerData($companyId, $startDate, $endDate, $request->account_id);
+        $lines = $data['lines'];
+        $beginningBalances = $data['beginning_balances'];
 
         // Group by account for the PDF
         $grouped = [];
+        $accountsById = ChartOfAccount::where('company_id', $companyId)->get()->keyBy('id');
+
         foreach ($lines as $line) {
-            $key = $line->chartOfAccount->code . ' - ' . $line->chartOfAccount->name;
+            $account = $line->chartOfAccount;
+            $key = $account->code . ' - ' . $account->name;
+            
             if (!isset($grouped[$key])) {
+                $begBal = $beginningBalances[$account->id] ?? 0;
                 $grouped[$key] = [
-                    'account' => $line->chartOfAccount,
+                    'account' => $account,
                     'lines' => [], 
                     'total_debit' => 0, 
                     'total_credit' => 0,
-                    'running_balance' => 0
+                    'beginning_balance' => $begBal,
+                    'running_balance' => $begBal
                 ];
             }
 
@@ -170,6 +179,28 @@ class AccountingReportController extends Controller
             $grouped[$key]['total_credit'] += $credit;
         }
 
+        // Include accounts that have a beginning balance but no activity in the period
+        if (!$request->account_id) {
+            foreach ($beginningBalances as $accountId => $balance) {
+                if ($balance != 0) {
+                    $account = $accountsById->get($accountId);
+                    if ($account) {
+                        $key = $account->code . ' - ' . $account->name;
+                        if (!isset($grouped[$key])) {
+                            $grouped[$key] = [
+                                'account' => $account,
+                                'lines' => [],
+                                'total_debit' => 0,
+                                'total_credit' => 0,
+                                'beginning_balance' => $balance,
+                                'running_balance' => $balance
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
         $pdf = Pdf::loadView('pdf.general-ledger', [
             'groupedLedger' => $grouped,
             'startDate' => $startDate,
@@ -182,19 +213,58 @@ class AccountingReportController extends Controller
 
     private function getGeneralLedgerData($companyId, $startDate, $endDate, $accountId = null)
     {
-        $query = JournalEntryLine::with(['journalEntry', 'chartOfAccount'])
-            ->whereHas('chartOfAccount', fn($q) => $q->where('company_id', $companyId))
-            ->whereHas('journalEntry', function($q) use ($startDate, $endDate) {
-                $q->whereDate('transaction_date', '>=', $startDate)
-                  ->whereDate('transaction_date', '<=', $endDate);
-            });
-
+        // 1. Calculate Beginning Balances
+        $beginningBalances = [];
+        $accountsQuery = ChartOfAccount::where('company_id', $companyId);
         if ($accountId) {
-            $query->where('chart_of_account_id', $accountId);
+            $accountsQuery->where('id', $accountId);
+        }
+        $accounts = $accountsQuery->get();
+
+        // Optimized beginning balance calculation
+        $prevTotals = JournalEntryLine::select('chart_of_account_id')
+            ->selectRaw('SUM(debit) as total_debit, SUM(credit) as total_credit')
+            ->whereHas('journalEntry', function($q) use ($startDate) {
+                $q->whereDate('transaction_date', '<', $startDate);
+            })
+            ->whereHas('chartOfAccount', function($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            })
+            ->groupBy('chart_of_account_id')
+            ->get()
+            ->keyBy('chart_of_account_id');
+
+        foreach ($accounts as $account) {
+            $totals = $prevTotals->get($account->id);
+            $totalDebit = $totals ? (float)$totals->total_debit : 0;
+            $totalCredit = $totals ? (float)$totals->total_credit : 0;
+
+            $balance = in_array($account->type, ['asset', 'expense'])
+                ? ($totalDebit - $totalCredit)
+                : ($totalCredit - $totalDebit);
+            
+            $beginningBalances[$account->id] = (float)$balance;
         }
 
-        return $query->get()
-            ->sortBy(fn($line) => $line->journalEntry->transaction_date)
-            ->values();
+        // 2. Get Period Lines
+        $query = JournalEntryLine::with(['journalEntry', 'chartOfAccount'])
+            ->join('journal_entries', 'journal_entry_lines.journal_entry_id', '=', 'journal_entries.id')
+            ->select('journal_entry_lines.*') // Avoid column name collision
+            ->whereHas('chartOfAccount', fn($q) => $q->where('company_id', $companyId))
+            ->whereDate('journal_entries.transaction_date', '>=', $startDate)
+            ->whereDate('journal_entries.transaction_date', '<=', $endDate)
+            ->orderBy('journal_entries.transaction_date')
+            ->orderBy('journal_entry_lines.id');
+
+        if ($accountId) {
+            $query->where('journal_entry_lines.chart_of_account_id', $accountId);
+        }
+
+        $lines = $query->get();
+
+        return [
+            'lines' => $lines,
+            'beginning_balances' => $beginningBalances
+        ];
     }
 }

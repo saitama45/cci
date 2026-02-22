@@ -293,6 +293,29 @@ const handleMouseLeave = () => {
                         />
                         <span v-if="!isCollapsed" class="font-medium text-sm">Reservations</span>
                     </Link>
+
+                    <!-- Contracted Sales -->
+                    <Link
+                        v-if="hasPermission('reservations.view')"
+                        :href="route('contracted-sales.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('contracted-sales.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Contracted Sales')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ClipboardDocumentCheckIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('contracted-sales.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Contracted Sales</span>
+                    </Link>
                  </template>
 
                  <!-- Finance -->

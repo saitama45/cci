@@ -15,7 +15,8 @@ import {
 const props = defineProps({
     ledger_lines: Array,
     accounts: Array,
-    filters: Object
+    filters: Object,
+    beginning_balances: Object
 });
 
 const accountId = ref(props.filters.account_id || '');
@@ -65,15 +66,21 @@ const clearFilters = () => {
 // Group lines by account for a "Book" feel
 const groupedLedger = computed(() => {
     const groups = {};
+    
+    // First, initialize groups for accounts that have activity
     props.ledger_lines.forEach(line => {
-        const accountKey = `${line.chart_of_account.code} - ${line.chart_of_account.name}`;
+        const account = line.chart_of_account;
+        const accountKey = `${account.code} - ${account.name}`;
+        
         if (!groups[accountKey]) {
+            const begBal = props.beginning_balances[account.id] || 0;
             groups[accountKey] = {
-                account: line.chart_of_account,
+                account: account,
                 lines: [],
                 total_debit: 0,
                 total_credit: 0,
-                running_balance: 0
+                beginning_balance: begBal,
+                running_balance: begBal
             };
         }
         
@@ -96,6 +103,30 @@ const groupedLedger = computed(() => {
         groups[accountKey].total_debit += debit;
         groups[accountKey].total_credit += credit;
     });
+
+    // Also include accounts that have a beginning balance but no activity in the period
+    // if we are not filtering by a specific account
+    if (!accountId.value) {
+        Object.entries(props.beginning_balances).forEach(([id, balance]) => {
+            if (balance !== 0) {
+                const account = props.accounts.find(a => a.id == id);
+                if (account) {
+                    const accountKey = `${account.code} - ${account.name}`;
+                    if (!groups[accountKey]) {
+                        groups[accountKey] = {
+                            account: account,
+                            lines: [],
+                            total_debit: 0,
+                            total_credit: 0,
+                            beginning_balance: balance,
+                            running_balance: balance
+                        };
+                    }
+                }
+            }
+        });
+    }
+
     return groups;
 });
 </script>
@@ -202,6 +233,17 @@ const groupedLedger = computed(() => {
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
+                                    <!-- Beginning Balance Row -->
+                                    <tr class="bg-blue-50/10">
+                                        <td class="px-8 py-3 text-xs font-bold text-slate-400 whitespace-nowrap">-</td>
+                                        <td class="px-8 py-3 text-xs font-black text-slate-400 tracking-tighter">-</td>
+                                        <td class="px-8 py-3 text-sm text-slate-500 font-bold italic">Beginning Balance</td>
+                                        <td class="px-8 py-3 text-sm text-right font-black text-slate-400">-</td>
+                                        <td class="px-8 py-3 text-sm text-right font-black text-slate-400">-</td>
+                                        <td class="px-8 py-3 text-sm text-right font-black text-blue-600 bg-blue-50/30">
+                                            {{ formatCurrency(group.beginning_balance) }}
+                                        </td>
+                                    </tr>
                                     <tr v-for="line in group.lines" :key="line.id" class="hover:bg-slate-50/20 transition-colors">
                                         <td class="px-8 py-4 text-xs font-bold text-slate-500 whitespace-nowrap">{{ formatDate(line.journal_entry.transaction_date) }}</td>
                                         <td class="px-8 py-4 text-xs font-black text-blue-600 tracking-tighter">{{ line.journal_entry.reference_no || '-' }}</td>

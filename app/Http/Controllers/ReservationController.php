@@ -121,7 +121,7 @@ class ReservationController extends Controller
             'expiry_date' => 'nullable|date|after_or_equal:reservation_date',
             'fee' => 'required|numeric|min:0',
             'payment_method' => 'required|string',
-            'reference_no' => 'nullable|string',
+            'reference_no' => 'required|string',
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -150,6 +150,7 @@ class ReservationController extends Controller
                     'company_id' => $companyId,
                     'customer_id' => $validated['customer_id'],
                     'reservation_id' => $reservation->id,
+                    'payment_type' => 'Reservation Fee',
                     'amount' => $validated['fee'],
                     'payment_date' => $validated['reservation_date'],
                     'payment_method' => $validated['payment_method'],
@@ -234,6 +235,7 @@ class ReservationController extends Controller
         $validated = $request->validate([
             'plan_type' => 'required|in:Spot Cash,Installment',
             'amortization_terms' => 'required_if:plan_type,Installment|nullable|integer|min:1',
+            'interest_rate' => 'required|numeric|min:0',
             'start_date' => 'required|date',
         ]);
 
@@ -242,60 +244,89 @@ class ReservationController extends Controller
             return redirect()->back()->with('error', 'Pricing not set for this unit. Please set a price list first.');
         }
 
-        // Validation: Must have paid the required downpayment
         if (!$reservation->is_dp_fully_paid) {
             $due = (float) $priceList->downpayment_amount - $reservation->total_paid;
             return redirect()->back()->with('error', "Cannot contract: Downpayment is not fully paid. Balance due: " . number_format($due, 2));
         }
 
         DB::transaction(function () use ($reservation, $validated, $priceList) {
-            $reservation->update(['status' => 'Contracted']);
+            $tcp = (float) $priceList->tcp;
+            $dpPaid = (float) $reservation->total_paid;
+            $loanableAmount = $tcp - $dpPaid;
+            $annualInterest = (float) $validated['interest_rate'] / 100;
+            $monthlyInterest = $annualInterest / 12;
+            $terms = (int) ($validated['amortization_terms'] ?? 1);
             
-            // Update unit status to Sold
+            // Calculate Monthly Amortization (Standard formula)
+            // MA = P * [ i(1+i)^n ] / [ (1+i)^n - 1 ]
+            if ($annualInterest > 0 && $validated['plan_type'] === 'Installment') {
+                $monthlyAmortization = $loanableAmount * ($monthlyInterest * pow(1 + $monthlyInterest, $terms)) / (pow(1 + $monthlyInterest, $terms) - 1);
+            } else {
+                $monthlyAmortization = $loanableAmount / $terms;
+            }
+
+            // Generate unique contract number: CNT-YEAR-MONTH-RESERVATION_ID
+            $contractNo = 'CNT-' . date('Ym') . '-' . str_pad($reservation->id, 4, '0', STR_PAD_LEFT);
+
+            $contractedSale = \App\Models\ContractedSale::create([
+                'contract_no' => $contractNo,
+                'company_id' => Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? 1),
+                'reservation_id' => $reservation->id,
+                'customer_id' => $reservation->customer_id,
+                'unit_id' => $reservation->unit_id,
+                'tcp' => $tcp,
+                'downpayment_paid' => $dpPaid,
+                'loanable_amount' => $loanableAmount,
+                'interest_rate' => $annualInterest * 100,
+                'terms_month' => $terms,
+                'monthly_amortization' => $monthlyAmortization,
+                'start_date' => $validated['start_date'],
+                'status' => 'Active',
+            ]);
+
+            $reservation->update(['status' => 'Contracted']);
             $reservation->unit->update(['status' => 'Sold']);
 
-            // Record Revenue Recognition in Accounting
+            // Accounting revenue recognition
             $payment = $reservation->payments()->first();
             $referenceNo = $payment ? $payment->reference_no : null;
             $this->accountingService->recognizeRevenueFromReservation($reservation, $reservation->fee, $referenceNo);
 
-            // Generate Payment Schedule
+            // Generate Payment Schedule with breakdown
             $startDate = \Carbon\Carbon::parse($validated['start_date']);
-            $remainingBalance = (float) $priceList->tcp - $reservation->total_paid;
+            $remainingPrincipal = $loanableAmount;
 
-            if ($validated['plan_type'] === 'Spot Cash') {
+            for ($i = 1; $i <= $terms; $i++) {
+                $interestComponent = $remainingPrincipal * $monthlyInterest;
+                $principalComponent = $monthlyAmortization - $interestComponent;
+                
+                // Adjustment for the last installment to handle rounding
+                if ($i === $terms) {
+                    $principalComponent = $remainingPrincipal;
+                    $monthlyAmortization = $principalComponent + $interestComponent;
+                }
+
+                $remainingPrincipal -= $principalComponent;
+
                 \App\Models\PaymentSchedule::create([
                     'reservation_id' => $reservation->id,
+                    'contracted_sale_id' => $contractedSale->id,
                     'customer_id' => $reservation->customer_id,
                     'unit_id' => $reservation->unit_id,
-                    'type' => 'Full Payment',
-                    'installment_no' => 1,
-                    'due_date' => $startDate,
-                    'amount_due' => $remainingBalance,
+                    'type' => 'Amortization',
+                    'installment_no' => $i,
+                    'due_date' => $startDate->copy()->addMonths($i - 1),
+                    'amount_due' => $monthlyAmortization,
+                    'principal' => $principalComponent,
+                    'interest' => $interestComponent,
+                    'remaining_balance' => max(0, $remainingPrincipal),
                     'status' => 'Pending',
-                    'remarks' => 'Spot Cash full payment balance'
+                    'remarks' => "Monthly Amortization $i of $terms"
                 ]);
-            } else {
-                $terms = (int) $validated['amortization_terms'];
-                $monthlyAmount = $remainingBalance / $terms;
-
-                for ($i = 1; $i <= $terms; $i++) {
-                    \App\Models\PaymentSchedule::create([
-                        'reservation_id' => $reservation->id,
-                        'customer_id' => $reservation->customer_id,
-                        'unit_id' => $reservation->unit_id,
-                        'type' => 'Amortization',
-                        'installment_no' => $i,
-                        'due_date' => $startDate->copy()->addMonths($i - 1),
-                        'amount_due' => $monthlyAmount,
-                        'status' => 'Pending',
-                        'remarks' => "Monthly Amortization $i of $terms"
-                    ]);
-                }
             }
         });
 
-        return redirect()->back()->with('success', 'Contract signed and payment schedule generated.');
+        return redirect()->back()->with('success', 'Contract signed and amortization schedule generated.');
     }
 
     /**
@@ -334,7 +365,8 @@ class ReservationController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
             'payment_method' => 'required|string',
-            'reference_no' => 'nullable|string',
+            'payment_type' => 'required|string|in:Downpayment,Amortization,Other',
+            'reference_no' => 'required|string',
         ]);
 
         DB::transaction(function () use ($reservation, $validated) {
@@ -344,6 +376,7 @@ class ReservationController extends Controller
                 'company_id' => $companyId,
                 'customer_id' => $reservation->customer_id,
                 'reservation_id' => $reservation->id,
+                'payment_type' => $validated['payment_type'],
                 'amount' => $validated['amount'],
                 'payment_date' => $validated['payment_date'],
                 'payment_method' => $validated['payment_method'],

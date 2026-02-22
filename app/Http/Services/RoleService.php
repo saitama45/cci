@@ -22,7 +22,7 @@ class RoleService
         ],
         'roles' => [
             'label' => 'Roles & Permissions',
-            'permissions' => ['view', 'create', 'edit', 'delete']
+            'permissions' => ['view']
         ],
         'companies' => [
             'label' => 'Companies',
@@ -66,7 +66,7 @@ class RoleService
         ],
         'payments' => [
             'label' => 'Payments / Collections',
-            'permissions' => ['view', 'create']
+            'permissions' => ['view', 'show', 'create']
         ],
         'chart_of_accounts' => [
             'label' => 'Chart of Accounts',

@@ -102,7 +102,7 @@ const handleAmountInput = (e, form, field = 'fee') => {
 };
 
 const createReservation = () => {
-    post(route('reservations.store'), createForm, {
+    createForm.post(route('reservations.store'), {
         onSuccess: () => {
             showCreateModal.value = false;
             createForm.reset();
@@ -131,7 +131,7 @@ const editReservation = (reservation) => {
 };
 
 const updateReservation = () => {
-    put(route('reservations.update', editingReservation.value.id), editForm, {
+    editForm.put(route('reservations.update', editingReservation.value.id), {
         onSuccess: () => {
             showEditModal.value = false;
             editForm.reset();
@@ -154,6 +154,7 @@ const contractingReservation = ref(null);
 const contractForm = useForm({
     plan_type: 'Installment',
     amortization_terms: 12,
+    interest_rate: 7,
     start_date: formatDateForInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
 });
 
@@ -164,6 +165,7 @@ const paymentForm = useForm({
     amount: '',
     payment_date: formatDateForInput(new Date()),
     payment_method: 'Cash',
+    payment_type: 'Downpayment',
     reference_no: '',
 });
 
@@ -182,7 +184,7 @@ const signContract = (reservation) => {
 };
 
 const submitContract = () => {
-    post(route('reservations.contract', contractingReservation.value.id), contractForm, {
+    contractForm.post(route('reservations.contract', contractingReservation.value.id), {
         onSuccess: () => {
             showContractWizard.value = false;
             contractForm.reset();
@@ -201,7 +203,7 @@ const openPaymentModal = (reservation) => {
 };
 
 const submitPayment = () => {
-    post(route('reservations.record-payment', payingReservation.value.id), paymentForm, {
+    paymentForm.post(route('reservations.record-payment', payingReservation.value.id), {
         onSuccess: () => {
             showPaymentModal.value = false;
             paymentForm.reset();
@@ -217,7 +219,7 @@ const showCancelDialog = (reservation) => {
 };
 
 const submitCancellation = () => {
-    post(route('reservations.cancel-accounting', cancellingReservation.value.id), cancelForm, {
+    cancelForm.post(route('reservations.cancel-accounting', cancellingReservation.value.id), {
         onSuccess: () => {
             showCancelModal.value = false;
             cancelForm.reset();
@@ -518,7 +520,7 @@ const brokerOptions = computed(() => {
                                             
                                             <button @click="showCancelDialog(reservation)" class="p-2 text-amber-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Cancel/Refund"><ExclamationTriangleIcon class="w-5 h-5" /></button>
                                         </template>
-                                        <button v-if="hasPermission('reservations.edit')" @click="editReservation(reservation)" class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit Reservation"><PencilSquareIcon class="w-5 h-5" /></button>
+                                        <button v-if="hasPermission('reservations.edit') && reservation.status !== 'Contracted'" @click="editReservation(reservation)" class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit Reservation"><PencilSquareIcon class="w-5 h-5" /></button>
                                         <button v-if="hasPermission('reservations.delete')" @click="deleteReservation(reservation)" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete Reservation"><TrashIcon class="w-5 h-5" /></button>
                                     </div>
                                 </td>
@@ -557,7 +559,9 @@ const brokerOptions = computed(() => {
                                 label-key="name"
                                 value-key="id"
                                 placeholder="Search or select customer..."
+                                :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.customer_id}"
                             />
+                            <p v-if="createForm.errors.customer_id" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.customer_id }}</p>
                         </div>
 
                         <div class="col-span-2 md:col-span-1">
@@ -571,7 +575,9 @@ const brokerOptions = computed(() => {
                                 label-key="name"
                                 value-key="id"
                                 placeholder="Select unit..."
+                                :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.unit_id}"
                             />
+                            <p v-if="createForm.errors.unit_id" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.unit_id }}</p>
                         </div>
 
                         <div class="col-span-2 md:col-span-1">
@@ -585,7 +591,9 @@ const brokerOptions = computed(() => {
                                 label-key="name"
                                 value-key="id"
                                 placeholder="In-House / Direct"
+                                :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.broker_id}"
                             />
+                            <p v-if="createForm.errors.broker_id" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.broker_id }}</p>
                         </div>
 
                         <div>
@@ -593,7 +601,8 @@ const brokerOptions = computed(() => {
                                 <CalendarDaysIcon class="w-4 h-4 mr-2 text-indigo-500" />
                                 Reservation Date
                             </label>
-                            <input v-model="createForm.reservation_date" type="date" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <input v-model="createForm.reservation_date" type="date" required :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.reservation_date}" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <p v-if="createForm.errors.reservation_date" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.reservation_date }}</p>
                         </div>
 
                         <div>
@@ -601,7 +610,8 @@ const brokerOptions = computed(() => {
                                 <ClockIcon class="w-4 h-4 mr-2 text-rose-500" />
                                 Expiry Date
                             </label>
-                            <input v-model="createForm.expiry_date" type="date" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <input v-model="createForm.expiry_date" type="date" required :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.expiry_date}" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <p v-if="createForm.errors.expiry_date" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.expiry_date }}</p>
                         </div>
 
                         <div class="col-span-2">
@@ -615,21 +625,25 @@ const brokerOptions = computed(() => {
                                     @input="handleAmountInput($event, createForm)"
                                     type="text" 
                                     required 
+                                    :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.fee}"
                                     class="block w-full px-4 py-3 bg-emerald-50/30 border border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-black text-emerald-700 text-lg"
                                 >
                             </div>
+                            <p v-if="createForm.errors.fee" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.fee }}</p>
                         </div>
 
                         <div class="col-span-2 md:col-span-1">
                             <label class="block text-sm font-bold text-slate-700 mb-2">Payment Method</label>
-                            <select v-model="createForm.payment_method" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <select v-model="createForm.payment_method" :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.payment_method}" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
                                 <option v-for="method in payment_methods" :key="method" :value="method">{{ method }}</option>
                             </select>
+                            <p v-if="createForm.errors.payment_method" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.payment_method }}</p>
                         </div>
 
                         <div class="col-span-2 md:col-span-1">
                             <label class="block text-sm font-bold text-slate-700 mb-2">Reference No. (OR# / Trans#)</label>
-                            <input v-model="createForm.reference_no" type="text" placeholder="e.g. OR-12345" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <input v-model="createForm.reference_no" type="text" required placeholder="e.g. OR-12345" :class="{'ring-2 ring-red-500 border-red-500': createForm.errors.reference_no}" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <p v-if="createForm.errors.reference_no" class="text-xs text-red-500 mt-1 font-bold">{{ createForm.errors.reference_no }}</p>
                         </div>
                     </div>
 
@@ -680,7 +694,9 @@ const brokerOptions = computed(() => {
                                 label-key="name"
                                 value-key="id"
                                 placeholder="Search or select customer..."
+                                :class="{'ring-2 ring-red-500 border-red-500': editForm.errors.customer_id}"
                             />
+                            <p v-if="editForm.errors.customer_id" class="text-xs text-red-500 mt-1 font-bold">{{ editForm.errors.customer_id }}</p>
                         </div>
 
                         <div class="col-span-2 md:col-span-1">
@@ -694,7 +710,9 @@ const brokerOptions = computed(() => {
                                 label-key="name"
                                 value-key="id"
                                 placeholder="Select unit..."
+                                :class="{'ring-2 ring-red-500 border-red-500': editForm.errors.unit_id}"
                             />
+                            <p v-if="editForm.errors.unit_id" class="text-xs text-red-500 mt-1 font-bold">{{ editForm.errors.unit_id }}</p>
                         </div>
 
                         <div class="col-span-2 md:col-span-1">
@@ -708,7 +726,9 @@ const brokerOptions = computed(() => {
                                 label-key="name"
                                 value-key="id"
                                 placeholder="In-House / Direct"
+                                :class="{'ring-2 ring-red-500 border-red-500': editForm.errors.broker_id}"
                             />
+                            <p v-if="editForm.errors.broker_id" class="text-xs text-red-500 mt-1 font-bold">{{ editForm.errors.broker_id }}</p>
                         </div>
 
                         <div>
@@ -716,7 +736,8 @@ const brokerOptions = computed(() => {
                                 <CalendarDaysIcon class="w-4 h-4 mr-2 text-indigo-500" />
                                 Reservation Date
                             </label>
-                            <input v-model="editForm.reservation_date" type="date" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <input v-model="editForm.reservation_date" type="date" required :class="{'ring-2 ring-red-500 border-red-500': editForm.errors.reservation_date}" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <p v-if="editForm.errors.reservation_date" class="text-xs text-red-500 mt-1 font-bold">{{ editForm.errors.reservation_date }}</p>
                         </div>
 
                         <div>
@@ -724,7 +745,8 @@ const brokerOptions = computed(() => {
                                 <ClockIcon class="w-4 h-4 mr-2 text-rose-500" />
                                 Expiry Date
                             </label>
-                            <input v-model="editForm.expiry_date" type="date" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <input v-model="editForm.expiry_date" type="date" required :class="{'ring-2 ring-red-500 border-red-500': editForm.errors.expiry_date}" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                            <p v-if="editForm.errors.expiry_date" class="text-xs text-red-500 mt-1 font-bold">{{ editForm.errors.expiry_date }}</p>
                         </div>
 
                         <div class="col-span-2">
@@ -738,9 +760,11 @@ const brokerOptions = computed(() => {
                                     @input="handleAmountInput($event, editForm)"
                                     type="text" 
                                     required 
+                                    :class="{'ring-2 ring-red-500 border-red-500': editForm.errors.fee}"
                                     class="block w-full px-4 py-3 bg-emerald-50/30 border border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-black text-emerald-700 text-lg"
                                 >
                             </div>
+                            <p v-if="editForm.errors.fee" class="text-xs text-red-500 mt-1 font-bold">{{ editForm.errors.fee }}</p>
                         </div>
                     </div>
 
@@ -887,7 +911,7 @@ const brokerOptions = computed(() => {
 
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Reference No.</label>
-                        <input v-model="paymentForm.reference_no" type="text" placeholder="OR# / Trans#" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                        <input v-model="paymentForm.reference_no" type="text" required placeholder="OR# / Trans#" class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
                     </div>
 
                     <div class="flex justify-end space-x-3 pt-6 border-t border-slate-100">
@@ -957,7 +981,11 @@ const brokerOptions = computed(() => {
                                 </select>
                             </div>
                         </div>
-                        <div :class="contractForm.plan_type === 'Spot Cash' ? 'col-span-2' : ''">
+                        <div v-if="contractForm.plan_type === 'Installment'">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Interest Rate (Annual %)</label>
+                            <input v-model="contractForm.interest_rate" type="number" step="0.01" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
+                        </div>
+                        <div :class="contractForm.plan_type === 'Spot Cash' ? 'col-span-2' : 'col-span-2 md:col-span-2'">
                             <label class="block text-sm font-bold text-slate-700 mb-2">Payment Start Date</label>
                             <input v-model="contractForm.start_date" type="date" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-semibold text-slate-700 text-sm">
                         </div>
