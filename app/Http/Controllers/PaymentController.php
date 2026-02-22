@@ -126,7 +126,12 @@ class PaymentController extends Controller
                 $totalInterestPaid += $interestPortion;
 
                 $schedule->increment('amount_paid', $toPay);
-                if ((float)$schedule->amount_paid >= (float)$schedule->amount_due) {
+                
+                // Fix: Use rounded comparison to avoid Partially Paid status due to precision errors
+                $amountPaid = round((float)$schedule->amount_paid, 2);
+                $amountDue = round((float)$schedule->amount_due, 2);
+
+                if ($amountPaid >= $amountDue) {
                     $schedule->update(['status' => 'Paid']);
                 } else {
                     $schedule->update(['status' => 'Partially Paid']);

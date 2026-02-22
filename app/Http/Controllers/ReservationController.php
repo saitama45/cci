@@ -305,12 +305,12 @@ class ReservationController extends Controller
             $remainingPrincipal = $loanableAmount;
 
             for ($i = 1; $i <= $terms; $i++) {
-                $interestComponent = $remainingPrincipal * $monthlyInterest;
-                $principalComponent = $monthlyAmortization - $interestComponent;
+                $interestComponent = round($remainingPrincipal * $monthlyInterest, 2);
+                $principalComponent = round($monthlyAmortization - $interestComponent, 2);
                 
                 // Adjustment for the last installment to handle rounding
                 if ($i === $terms) {
-                    $principalComponent = $remainingPrincipal;
+                    $principalComponent = round($remainingPrincipal, 2);
                     $monthlyAmortization = $principalComponent + $interestComponent;
                 }
 
@@ -324,10 +324,10 @@ class ReservationController extends Controller
                     'type' => 'Amortization',
                     'installment_no' => $i,
                     'due_date' => $startDate->copy()->addMonths($i - 1),
-                    'amount_due' => $monthlyAmortization,
+                    'amount_due' => round($principalComponent + $interestComponent, 2),
                     'principal' => $principalComponent,
                     'interest' => $interestComponent,
-                    'remaining_balance' => max(0, $remainingPrincipal),
+                    'remaining_balance' => max(0, round($remainingPrincipal, 2)),
                     'status' => 'Pending',
                     'remarks' => "Monthly Amortization $i of $terms"
                 ]);
