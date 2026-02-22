@@ -36,7 +36,7 @@ const sidebarCollapsed = ref(getStoredSidebarState());
 const mobileMenuOpen = ref(false);
 const userMenuOpen = ref(false);
 const userMenuRef = ref(null);
-const { success, error, warning, info } = useToast();
+const { showSuccess, showError, showWarning, showInfo } = useToast();
 const { 
     showConfirmModal, 
     confirmTitle, 
@@ -48,6 +48,22 @@ const {
     handleCancel 
 } = useConfirm();
 const { hasPermission } = usePermission();
+
+// Watch for Inertia flash messages
+watch(() => page.props.flash, (flash) => {
+    if (flash?.success) {
+        showSuccess(flash.success);
+    }
+    if (flash?.error) {
+        showError(flash.error);
+    }
+    if (flash?.warning) {
+        showWarning(flash.warning);
+    }
+    if (flash?.info) {
+        showInfo(flash.info);
+    }
+}, { deep: true, immediate: true });
 
 const toggleSidebar = () => {
     sidebarCollapsed.value = !sidebarCollapsed.value;

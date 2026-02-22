@@ -261,7 +261,147 @@ class AccountingService
     }
 
     /**
-     * Updates associated accounting entries when a reservation fee is modified.
+     * Records an expense payment.
+     * Debit: Expense Account (Repairs, Taxes, etc.)
+     * Credit: Cash/Bank Account
+     */
+    public function recordExpense($companyId, $expenseAccountCode, $amount, $date, $referenceNo, $description, $memo = null)
+    {
+        return DB::transaction(function () use ($companyId, $expenseAccountCode, $amount, $date, $referenceNo, $description, $memo) {
+            $cashAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '1010')->first();
+            $expenseAccount = ChartOfAccount::where('company_id', $companyId)->where('code', $expenseAccountCode)->first();
+
+            if (!$cashAccount || !$expenseAccount) {
+                throw new \Exception("Cash or Expense account not found.");
+            }
+
+            $journalEntry = JournalEntry::create([
+                'company_id' => $companyId,
+                'user_id' => Auth::id(),
+                'transaction_date' => $date,
+                'reference_no' => $referenceNo,
+                'description' => $description,
+            ]);
+
+            // Debit Expense
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $expenseAccount->id,
+                'debit' => $amount,
+                'credit' => 0,
+                'memo' => $memo ?? $description,
+            ]);
+
+            // Credit Cash
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $cashAccount->id,
+                'debit' => 0,
+                'credit' => $amount,
+                'memo' => 'Payment for expense',
+            ]);
+
+            return $journalEntry;
+        });
+    }
+
+    /**
+     * Records a capitalized cost (e.g., Land Acquisition, Construction).
+     * Debit: Asset Account (Land, Building, CIP)
+     * Credit: Cash/Bank or Mortgage Payable
+     */
+    public function recordCapitalizedCost($companyId, $assetAccountCode, $creditAccountCode, $amount, $date, $referenceNo, $description)
+    {
+        return DB::transaction(function () use ($companyId, $assetAccountCode, $creditAccountCode, $amount, $date, $referenceNo, $description) {
+            $assetAccount = ChartOfAccount::where('company_id', $companyId)->where('code', $assetAccountCode)->first();
+            $creditAccount = ChartOfAccount::where('company_id', $companyId)->where('code', $creditAccountCode)->first();
+
+            if (!$assetAccount || !$creditAccount) {
+                throw new \Exception("Asset or Credit account not found.");
+            }
+
+            $journalEntry = JournalEntry::create([
+                'company_id' => $companyId,
+                'user_id' => Auth::id(),
+                'transaction_date' => $date,
+                'reference_no' => $referenceNo,
+                'description' => $description,
+            ]);
+
+            // Debit Asset (Capitalize)
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $assetAccount->id,
+                'debit' => $amount,
+                'credit' => 0,
+                'memo' => 'Capitalized cost for development/acquisition',
+            ]);
+
+            // Credit Cash or Liability
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $creditAccount->id,
+                'debit' => 0,
+                'credit' => $amount,
+                'memo' => 'Payment/Obligation for asset acquisition',
+            ]);
+
+            return $journalEntry;
+        });
+    }
+
+    /**
+     * Records Cost of Goods Sold (COGS) for a sold property.
+     * Debit: COGS (Expense)
+     * Credit: Inventory (Asset)
+     */
+    public function recordCOGS($companyId, $amount, $date, $referenceNo, $description)
+    {
+        return DB::transaction(function () use ($companyId, $amount, $date, $referenceNo, $description) {
+            $cogsAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '5000')->first(); // General or specific COGS
+            $inventoryAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '1510')->first(); // Buildings/Inventory
+
+            if (!$cogsAccount || !$inventoryAccount) {
+                // If 5000 doesn't exist, we might need to check if 5100 series exists
+                $cogsAccount = ChartOfAccount::where('company_id', $companyId)->where('type', 'expense')->where('name', 'like', '%COGS%')->first();
+            }
+
+            if (!$cogsAccount || !$inventoryAccount) {
+                throw new \Exception("COGS or Inventory account not found.");
+            }
+
+            $journalEntry = JournalEntry::create([
+                'company_id' => $companyId,
+                'user_id' => Auth::id(),
+                'transaction_date' => $date,
+                'reference_no' => $referenceNo,
+                'description' => $description,
+            ]);
+
+            // Debit COGS
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $cogsAccount->id,
+                'debit' => $amount,
+                'credit' => 0,
+                'memo' => 'Recognition of cost of goods sold',
+            ]);
+
+            // Credit Inventory
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $inventoryAccount->id,
+                'debit' => 0,
+                'credit' => $amount,
+                'memo' => 'Reduction of inventory for sale',
+            ]);
+
+            return $journalEntry;
+        });
+    }
+
+    /**
+     * Records associated accounting entries when a reservation fee is modified.
      */
     public function updateReservationAccounting($reservation)
     {

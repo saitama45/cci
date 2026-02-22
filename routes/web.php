@@ -36,6 +36,9 @@ Route::middleware('auth')->group(function () {
             Route::resource('customer-documents', \App\Http\Controllers\CustomerDocumentController::class)->only(['store', 'destroy']);
             
             // Accounting & Finance
+            Route::resource('vendors', \App\Http\Controllers\VendorController::class);
+            Route::post('vendors/{vendor}/documents', [\App\Http\Controllers\VendorController::class, 'uploadDocument'])->name('vendors.documents.upload');
+            Route::delete('vendors/documents/{document}', [\App\Http\Controllers\VendorController::class, 'deleteDocument'])->name('vendors.documents.delete');
             Route::resource('journal-entries', \App\Http\Controllers\JournalEntryController::class);
             Route::resource('payments', \App\Http\Controllers\PaymentController::class);
             Route::get('api/customers/{customer}/contracts', [\App\Http\Controllers\PaymentController::class, 'getCustomerContracts'])->name('api.customers.contracts');

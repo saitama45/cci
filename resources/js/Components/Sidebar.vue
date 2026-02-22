@@ -321,11 +321,34 @@ const handleMouseLeave = () => {
                  </template>
 
                  <!-- Finance -->
-                 <template v-if="hasAnyPermission(['accounting.view', 'journal_entries.view', 'payments.view', 'chart_of_accounts.view'])">
+                 <template v-if="hasAnyPermission(['accounting.view', 'journal_entries.view', 'payments.view', 'chart_of_accounts.view', 'vendors.view'])">
                     <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Finance & Accounting</p>
                     </div>
                     <div v-else class="my-4 border-t border-slate-800"></div>
+
+                    <!-- Vendor Management -->
+                    <Link
+                        v-if="hasPermission('vendors.view')"
+                        :href="route('vendors.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('vendors.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Vendor Management')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <UserGroupIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('vendors.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Vendor Management</span>
+                    </Link>
 
                     <!-- Journal Entries -->
                     <Link

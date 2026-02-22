@@ -72,6 +72,10 @@ class RoleService
             'label' => 'Chart of Accounts',
             'permissions' => ['view', 'create', 'edit']
         ],
+        'vendors' => [
+            'label' => 'Vendors / Suppliers',
+            'permissions' => ['view', 'create', 'edit', 'delete']
+        ],
         'collections' => [
             'label' => 'Collections',
             'permissions' => ['view']

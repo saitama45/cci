@@ -23,10 +23,14 @@ class ChartOfAccountsSeeder extends Seeder
             ['code' => '1010', 'name' => 'Cash in Bank - PHP', 'type' => 'asset', 'category' => 'Current Asset'],
             ['code' => '1020', 'name' => 'Cash on Hand', 'type' => 'asset', 'category' => 'Current Asset'],
             ['code' => '1100', 'name' => 'Accounts Receivable', 'type' => 'asset', 'category' => 'Current Asset'],
+            ['code' => '1500', 'name' => 'Land Acquisition Costs', 'type' => 'asset', 'category' => 'Fixed Asset'],
+            ['code' => '1510', 'name' => 'Buildings & Structures', 'type' => 'asset', 'category' => 'Fixed Asset'],
+            ['code' => '1520', 'name' => 'Construction in Progress', 'type' => 'asset', 'category' => 'Fixed Asset'],
             
             // Liabilities (2000s)
             ['code' => '2200', 'name' => 'Reservation Fees Payable / Customer Deposits', 'type' => 'liability', 'category' => 'Current Liability'],
             ['code' => '2300', 'name' => 'Accounts Payable', 'type' => 'liability', 'category' => 'Current Liability'],
+            ['code' => '2400', 'name' => 'Mortgage Payable', 'type' => 'liability', 'category' => 'Long-term Liability'],
             
             // Equity (3000s)
             ['code' => '3000', 'name' => 'Retained Earnings', 'type' => 'equity', 'category' => 'Equity'],
@@ -34,9 +38,25 @@ class ChartOfAccountsSeeder extends Seeder
             // Revenue (4000s)
             ['code' => '4100', 'name' => 'Property Sales / Income', 'type' => 'revenue', 'category' => 'Operating Income'],
             ['code' => '4200', 'name' => 'Other Income', 'type' => 'revenue', 'category' => 'Other Income'],
+            ['code' => '4300', 'name' => 'Interest Income', 'type' => 'revenue', 'category' => 'Other Income'],
             
-            // Expenses (5000s)
-            ['code' => '5000', 'name' => 'Operating Expenses', 'type' => 'expense', 'category' => 'Operating Expense'],
+            // Operating Expenses (5000s)
+            ['code' => '5100', 'name' => 'Property Management Fees', 'type' => 'expense', 'category' => 'Operating Expense'],
+            ['code' => '5110', 'name' => 'Repairs and Maintenance', 'type' => 'expense', 'category' => 'Operating Expense'],
+            ['code' => '5120', 'name' => 'Property Taxes', 'type' => 'expense', 'category' => 'Operating Expense'],
+            ['code' => '5130', 'name' => 'Insurance Expense', 'type' => 'expense', 'category' => 'Operating Expense'],
+            ['code' => '5140', 'name' => 'Utilities (Elec/Water/Gas)', 'type' => 'expense', 'category' => 'Operating Expense'],
+            
+            // Administrative & Selling (6000s)
+            ['code' => '6100', 'name' => 'Marketing and Advertising', 'type' => 'expense', 'category' => 'Admin Expense'],
+            ['code' => '6110', 'name' => 'Legal and Professional Fees', 'type' => 'expense', 'category' => 'Admin Expense'],
+            ['code' => '6120', 'name' => 'Sales Commissions', 'type' => 'expense', 'category' => 'Admin Expense'],
+            ['code' => '6130', 'name' => 'Office Supplies & Expenses', 'type' => 'expense', 'category' => 'Admin Expense'],
+            
+            // Financial & Other (7000s)
+            ['code' => '7100', 'name' => 'Interest Expense', 'type' => 'expense', 'category' => 'Financial Expense'],
+            ['code' => '7110', 'name' => 'Depreciation and Amortization', 'type' => 'expense', 'category' => 'Other Expense'],
+            ['code' => '7120', 'name' => 'Bank Service Charges', 'type' => 'expense', 'category' => 'Financial Expense'],
         ];
 
         foreach ($defaultAccounts as $account) {
