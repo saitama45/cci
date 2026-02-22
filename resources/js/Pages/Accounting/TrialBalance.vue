@@ -154,7 +154,7 @@ const clearFilters = () => {
                                         {{ formatCurrency(totals.credit) }}
                                     </td>
                                 </tr>
-                                <tr v-if="totals.debit !== totals.credit" class="bg-rose-600 text-white text-center">
+                                <tr v-if="Number(totals.debit).toFixed(2) !== Number(totals.credit).toFixed(2)" class="bg-rose-600 text-white text-center">
                                     <td colspan="5" class="py-2 text-[10px] font-black uppercase tracking-widest animate-pulse">
                                         Warning: Ledger is out of balance by {{ formatCurrency(Math.abs(totals.debit - totals.credit)) }}
                                     </td>

@@ -32,8 +32,8 @@ class AccountingReportController extends Controller
                 'end_date' => $endDate,
             ],
             'totals' => [
-                'debit' => $accounts->sum('total_debit'),
-                'credit' => $accounts->sum('total_credit'),
+                'debit' => round($accounts->sum('total_debit'), 2),
+                'credit' => round($accounts->sum('total_credit'), 2),
             ]
         ]);
     }
@@ -55,8 +55,8 @@ class AccountingReportController extends Controller
             'endDate' => $endDate,
             'company' => $company,
             'totals' => [
-                'debit' => $accounts->sum('total_debit'),
-                'credit' => $accounts->sum('total_credit'),
+                'debit' => round($accounts->sum('total_debit'), 2),
+                'credit' => round($accounts->sum('total_credit'), 2),
             ]
         ]);
 
