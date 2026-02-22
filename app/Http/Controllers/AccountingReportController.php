@@ -77,11 +77,14 @@ class AccountingReportController extends Controller
                 $totalDebit = (float) $account->journalEntryLines->sum('debit');
                 $totalCredit = (float) $account->journalEntryLines->sum('credit');
                 
-                $balance = 0;
-                if (in_array($account->type, ['asset', 'expense'])) {
-                    $balance = $totalDebit - $totalCredit;
-                } else {
-                    $balance = $totalCredit - $totalDebit;
+                // Calculate netted display values
+                $displayDebit = 0;
+                $displayCredit = 0;
+
+                if ($totalDebit > $totalCredit) {
+                    $displayDebit = $totalDebit - $totalCredit;
+                } elseif ($totalCredit > $totalDebit) {
+                    $displayCredit = $totalCredit - $totalDebit;
                 }
 
                 return (object)[
@@ -89,9 +92,11 @@ class AccountingReportController extends Controller
                     'code' => $account->code,
                     'name' => $account->name,
                     'type' => $account->type,
-                    'total_debit' => $totalDebit,
-                    'total_credit' => $totalCredit,
-                    'balance' => $balance,
+                    'total_debit' => $displayDebit,
+                    'total_credit' => $displayCredit,
+                    'balance' => in_array($account->type, ['asset', 'expense']) 
+                        ? ($totalDebit - $totalCredit) 
+                        : ($totalCredit - $totalDebit),
                 ];
             })
             ->filter(fn($a) => $a->total_debit != 0 || $a->total_credit != 0)
@@ -138,11 +143,31 @@ class AccountingReportController extends Controller
         foreach ($lines as $line) {
             $key = $line->chartOfAccount->code . ' - ' . $line->chartOfAccount->name;
             if (!isset($grouped[$key])) {
-                $grouped[$key] = ['lines' => [], 'total_debit' => 0, 'total_credit' => 0];
+                $grouped[$key] = [
+                    'account' => $line->chartOfAccount,
+                    'lines' => [], 
+                    'total_debit' => 0, 
+                    'total_credit' => 0,
+                    'running_balance' => 0
+                ];
             }
+
+            $debit = (float)$line->debit;
+            $credit = (float)$line->credit;
+
+            // Calculate running balance based on account type
+            $isNormalDebit = in_array($line->chartOfAccount->type, ['asset', 'expense']);
+            if ($isNormalDebit) {
+                $grouped[$key]['running_balance'] += ($debit - $credit);
+            } else {
+                $grouped[$key]['running_balance'] += ($credit - $debit);
+            }
+
+            $line->current_balance = $grouped[$key]['running_balance'];
+            
             $grouped[$key]['lines'][] = $line;
-            $grouped[$key]['total_debit'] += (float)$line->debit;
-            $grouped[$key]['total_credit'] += (float)$line->credit;
+            $grouped[$key]['total_debit'] += $debit;
+            $grouped[$key]['total_credit'] += $credit;
         }
 
         $pdf = Pdf::loadView('pdf.general-ledger', [

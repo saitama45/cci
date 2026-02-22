@@ -218,4 +218,55 @@ class AccountingService
             return $journalEntry;
         });
     }
+
+    /**
+     * Updates associated accounting entries when a reservation fee is modified.
+     */
+    public function updateReservationAccounting($reservation)
+    {
+        return DB::transaction(function () use ($reservation) {
+            $amount = $reservation->fee;
+
+            // 1. Update the Payment record first
+            $payment = $reservation->payments()->first();
+            if ($payment) {
+                $payment->update(['amount' => $amount]);
+                
+                // 2. Update the initial Receipt Journal Entry
+                if ($payment->journal_entry_id) {
+                    $journalEntry = JournalEntry::find($payment->journal_entry_id);
+                    if ($journalEntry) {
+                        // Update transaction date just in case it was changed
+                        $journalEntry->update(['transaction_date' => $reservation->reservation_date]);
+                        
+                        foreach ($journalEntry->lines as $line) {
+                            if ($line->debit > 0) {
+                                $line->update(['debit' => $amount]);
+                            } else {
+                                $line->update(['credit' => $amount]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Update the Revenue Recognition Entry if it exists (Status: Contracted)
+            $revenueEntry = JournalEntry::where('referenceable_type', get_class($reservation))
+                ->where('referenceable_id', $reservation->id)
+                ->where('description', 'like', 'Revenue Recognition%')
+                ->first();
+            
+            if ($revenueEntry) {
+                foreach ($revenueEntry->lines as $line) {
+                    if ($line->debit > 0) {
+                        $line->update(['debit' => $amount]);
+                    } else {
+                        $line->update(['credit' => $amount]);
+                    }
+                }
+            }
+
+            return true;
+        });
+    }
 }

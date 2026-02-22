@@ -144,9 +144,12 @@ class ReservationController extends Controller
             }
             
             $reservation->update($validated);
+            
+            // Synchronize associated accounting records (Payment and Journal Entries)
+            $this->accountingService->updateReservationAccounting($reservation);
         });
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Reservation and accounting records synchronized.');
     }
 
     /**
@@ -157,6 +160,21 @@ class ReservationController extends Controller
         DB::transaction(function () use ($reservation) {
             // Revert unit status to Available
             Unit::where('id', $reservation->unit_id)->update(['status' => 'Available']);
+            
+            // If it has associated accounting entries, delete them safely
+            $payment = $reservation->payments()->first();
+            if ($payment) {
+                if ($payment->journal_entry_id) {
+                    \App\Models\JournalEntry::where('id', $payment->journal_entry_id)->delete();
+                }
+                $payment->delete();
+            }
+
+            // Also delete revenue recognition entries if any
+            \App\Models\JournalEntry::where('referenceable_type', get_class($reservation))
+                ->where('referenceable_id', $reservation->id)
+                ->delete();
+
             $reservation->delete();
         });
 
@@ -175,8 +193,12 @@ class ReservationController extends Controller
         DB::transaction(function () use ($reservation) {
             $reservation->update(['status' => 'Contracted']);
             
-            // Record Revenue Recognition in Accounting
-            $this->accountingService->recognizeRevenueFromReservation($reservation, $reservation->fee);
+            // Get original reference number from the payment record
+            $payment = $reservation->payments()->first();
+            $referenceNo = $payment ? $payment->reference_no : null;
+            
+            // Record Revenue Recognition in Accounting with the reference number
+            $this->accountingService->recognizeRevenueFromReservation($reservation, $reservation->fee, $referenceNo);
         });
 
         return redirect()->back();

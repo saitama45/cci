@@ -15,9 +15,17 @@
                     :class="show ? 'scale-100 opacity-100' : 'scale-95 opacity-0'"
                 >
                     <!-- Icon -->
-                    <div class="flex items-center justify-center w-16 h-16 mx-auto mt-8 bg-red-100 rounded-full">
-                        <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    <div 
+                        class="flex items-center justify-center w-16 h-16 mx-auto mt-8 rounded-full"
+                        :class="[
+                            type === 'danger' ? 'bg-red-100 text-red-600' : 
+                            type === 'warning' ? 'bg-amber-100 text-amber-600' : 
+                            'bg-blue-100 text-blue-600'
+                        ]"
+                    >
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path v-if="type === 'danger' || type === 'warning'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                     
@@ -32,13 +40,18 @@
                                 @click="cancel"
                                 class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
                             >
-                                Cancel
+                                {{ cancelButtonText }}
                             </button>
                             <button 
                                 @click="confirm"
-                                class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+                                class="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2"
+                                :class="[
+                                    type === 'danger' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 
+                                    type === 'warning' ? 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500' : 
+                                    'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                                ]"
                             >
-                                Delete
+                                {{ confirmButtonText }}
                             </button>
                         </div>
                     </div>
@@ -55,11 +68,23 @@ const props = defineProps({
     show: Boolean,
     title: {
         type: String,
-        default: 'Confirm Delete'
+        default: 'Confirm Action'
     },
     message: {
         type: String,
-        default: 'Are you sure you want to delete this item? This action cannot be undone.'
+        default: 'Are you sure you want to proceed? This action cannot be undone.'
+    },
+    confirmButtonText: {
+        type: String,
+        default: 'Confirm'
+    },
+    cancelButtonText: {
+        type: String,
+        default: 'Cancel'
+    },
+    type: {
+        type: String,
+        default: 'danger' // 'danger', 'warning', 'info'
     }
 })
 

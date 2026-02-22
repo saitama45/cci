@@ -72,12 +72,29 @@ const groupedLedger = computed(() => {
                 account: line.chart_of_account,
                 lines: [],
                 total_debit: 0,
-                total_credit: 0
+                total_credit: 0,
+                running_balance: 0
             };
         }
-        groups[accountKey].lines.push(line);
-        groups[accountKey].total_debit += parseFloat(line.debit);
-        groups[accountKey].total_credit += parseFloat(line.credit);
+        
+        const debit = parseFloat(line.debit);
+        const credit = parseFloat(line.credit);
+        
+        // Calculate running balance based on account type
+        const isNormalDebit = ['asset', 'expense'].includes(line.chart_of_account.type);
+        if (isNormalDebit) {
+            groups[accountKey].running_balance += (debit - credit);
+        } else {
+            groups[accountKey].running_balance += (credit - debit);
+        }
+        
+        groups[accountKey].lines.push({
+            ...line,
+            current_balance: groups[accountKey].running_balance
+        });
+        
+        groups[accountKey].total_debit += debit;
+        groups[accountKey].total_credit += credit;
     });
     return groups;
 });
@@ -152,16 +169,22 @@ const groupedLedger = computed(() => {
                                 <div class="p-2 bg-blue-600 rounded-xl">
                                     <DocumentTextIcon class="w-5 h-5 text-white" />
                                 </div>
-                                <h3 class="text-base font-black text-slate-900 tracking-tight">{{ accountName }}</h3>
-                            </div>
-                            <div class="flex space-x-6 text-sm">
-                                <div class="flex flex-col items-end">
-                                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Debit</span>
-                                    <span class="font-black text-blue-600">{{ formatCurrency(group.total_debit) }}</span>
+                                <div>
+                                    <h3 class="text-base font-black text-slate-900 tracking-tight">{{ accountName }}</h3>
+                                    <span class="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 tracking-tighter">{{ group.account.type }}</span>
                                 </div>
+                            </div>
+                            <div class="flex space-x-8 text-sm">
                                 <div class="flex flex-col items-end">
-                                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Credit</span>
-                                    <span class="font-black text-rose-600">{{ formatCurrency(group.total_credit) }}</span>
+                                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Activity</span>
+                                    <div class="flex space-x-3 font-bold text-[11px]">
+                                        <span class="text-blue-600">DR: {{ formatCurrency(group.total_debit) }}</span>
+                                        <span class="text-rose-600">CR: {{ formatCurrency(group.total_credit) }}</span>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col items-end border-l border-slate-200 pl-8">
+                                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Balance</span>
+                                    <span class="text-lg font-black text-slate-900">{{ formatCurrency(group.running_balance) }}</span>
                                 </div>
                             </div>
                         </div>
@@ -175,6 +198,7 @@ const groupedLedger = computed(() => {
                                         <th class="px-8 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Description / Memo</th>
                                         <th class="px-8 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Debit</th>
                                         <th class="px-8 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Credit</th>
+                                        <th class="px-8 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Balance</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
@@ -182,7 +206,7 @@ const groupedLedger = computed(() => {
                                         <td class="px-8 py-4 text-xs font-bold text-slate-500 whitespace-nowrap">{{ formatDate(line.journal_entry.transaction_date) }}</td>
                                         <td class="px-8 py-4 text-xs font-black text-blue-600 tracking-tighter">{{ line.journal_entry.reference_no || '-' }}</td>
                                         <td class="px-8 py-4 text-sm text-slate-700">
-                                            <div class="font-bold">{{ line.journal_entry.description }}</div>
+                                            <div class="font-bold leading-tight">{{ line.journal_entry.description }}</div>
                                             <div class="text-[10px] text-slate-400 italic font-medium mt-0.5" v-if="line.memo">{{ line.memo }}</div>
                                         </td>
                                         <td class="px-8 py-4 text-sm text-right font-black text-slate-800">
@@ -190,6 +214,9 @@ const groupedLedger = computed(() => {
                                         </td>
                                         <td class="px-8 py-4 text-sm text-right font-black text-slate-800">
                                             {{ line.credit > 0 ? formatCurrency(line.credit) : '-' }}
+                                        </td>
+                                        <td class="px-8 py-4 text-sm text-right font-black text-blue-600 bg-blue-50/30">
+                                            {{ formatCurrency(line.current_balance) }}
                                         </td>
                                     </tr>
                                 </tbody>

@@ -17,7 +17,7 @@ class UnitController extends Controller
     {
         $this->authorize('viewAny', Unit::class);
 
-        $query = Unit::with('project');
+        $query = Unit::with(['project', 'reservations.customer']);
 
         if ($request->has('search')) {
             $search = $request->input('search');
@@ -26,6 +26,10 @@ class UnitController extends Controller
                   ->orWhere('status', 'like', "%{$search}%")
                   ->orWhereHas('project', function($q) use ($search) {
                       $q->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('reservations.customer', function($q) use ($search) {
+                      $q->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%");
                   });
             });
         }
@@ -73,7 +77,7 @@ class UnitController extends Controller
     {
         $this->authorize('view', $unit);
         
-        $unit->load('project');
+        $unit->load(['project', 'reservations.customer']);
 
         return Inertia::render('Units/Show', [
             'unit' => $unit,

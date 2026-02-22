@@ -41,9 +41,10 @@
                     <tr>
                         <th width="12%">Date</th>
                         <th width="15%">Reference #</th>
-                        <th width="43%">Description</th>
-                        <th width="15%" class="text-right">Debit</th>
-                        <th width="15%" class="text-right">Credit</th>
+                        <th width="33%">Description</th>
+                        <th width="13%" class="text-right">Debit</th>
+                        <th width="13%" class="text-right">Credit</th>
+                        <th width="14%" class="text-right">Balance</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -59,14 +60,16 @@
                             </td>
                             <td class="text-right">{{ $line->debit > 0 ? number_format($line->debit, 2) : '-' }}</td>
                             <td class="text-right">{{ $line->credit > 0 ? number_format($line->credit, 2) : '-' }}</td>
+                            <td class="text-right font-bold">{{ number_format($line->current_balance, 2) }}</td>
                         </tr>
                     @endforeach
                 </tbody>
                 <tfoot>
                     <tr class="totals-row">
-                        <td colspan="3" class="text-right">ACCOUNT TOTALS</td>
+                        <td colspan="3" class="text-right">ACCOUNT TOTALS & NET BALANCE</td>
                         <td class="text-right">{{ number_format($data['total_debit'], 2) }}</td>
                         <td class="text-right">{{ number_format($data['total_credit'], 2) }}</td>
+                        <td class="text-right">{{ number_format($data['running_balance'], 2) }}</td>
                     </tr>
                 </tfoot>
             </table>

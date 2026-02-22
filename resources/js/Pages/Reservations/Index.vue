@@ -73,6 +73,10 @@ const editForm = useForm({
     fee: '',
 });
 
+const isEditingContracted = computed(() => {
+    return editingReservation.value?.status === 'Contracted';
+});
+
 // Helper for reactive auto-comma input
 const handleFeeInput = (e, form) => {
     const input = e.target;
@@ -136,7 +140,9 @@ const cancelForm = useForm({
 const signContract = async (reservation) => {
     const confirmed = await confirm({
         title: 'Sign Contract',
-        message: `Are you sure you want to mark the reservation for ${reservation.customer?.first_name} ${reservation.customer?.last_name} as Contracted? This will recognize the reservation fee as REVENUE in accounting.`
+        message: `Are you sure you want to mark the reservation for ${reservation.customer?.first_name} ${reservation.customer?.last_name} as Contracted? This will recognize the reservation fee as REVENUE in accounting.`,
+        confirmButtonText: 'Sign Contract',
+        type: 'info'
     });
     
     if (confirmed) {
@@ -165,7 +171,9 @@ const submitCancellation = () => {
 const deleteReservation = async (reservation) => {
     const confirmed = await confirm({
         title: 'Cancel Reservation',
-        message: `Are you sure you want to cancel the reservation for ${reservation.customer?.first_name} ${reservation.customer?.last_name}? This will release the unit back to inventory.`
+        message: `Are you sure you want to cancel the reservation for ${reservation.customer?.first_name} ${reservation.customer?.last_name}? This will release the unit back to inventory.`,
+        confirmButtonText: 'Cancel Reservation',
+        type: 'danger'
     });
     
     if (confirmed) {
@@ -551,6 +559,15 @@ const brokerOptions = computed(() => {
                     </div>
                     <div class="p-2 bg-blue-50 rounded-xl">
                         <HomeIcon class="w-6 h-6 text-blue-600" />
+                    </div>
+                </div>
+
+                <!-- Contracted Warning -->
+                <div v-if="isEditingContracted" class="mx-8 mt-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start space-x-3">
+                    <ExclamationTriangleIcon class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                        <p class="text-sm font-bold text-amber-800">Contracted Record Warning</p>
+                        <p class="text-xs text-amber-700 leading-relaxed">This reservation is already <strong>Contracted</strong>. Modifying the fee or details will automatically synchronize and update the associated accounting journal entries and revenue recognition records.</p>
                     </div>
                 </div>
                 

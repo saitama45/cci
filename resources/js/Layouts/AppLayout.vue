@@ -37,7 +37,16 @@ const mobileMenuOpen = ref(false);
 const userMenuOpen = ref(false);
 const userMenuRef = ref(null);
 const { success, error, warning, info } = useToast();
-const { showConfirmModal, confirmTitle, confirmMessage, handleConfirm, handleCancel } = useConfirm();
+const { 
+    showConfirmModal, 
+    confirmTitle, 
+    confirmMessage, 
+    confirmButtonText, 
+    cancelButtonText, 
+    confirmType, 
+    handleConfirm, 
+    handleCancel 
+} = useConfirm();
 const { hasPermission } = usePermission();
 
 const toggleSidebar = () => {
@@ -207,14 +216,16 @@ onUnmounted(() => {
         <Toast />
         
         <!-- Confirm Modal -->
-        <ConfirmModal 
-            :show="showConfirmModal" 
-            :title="confirmTitle" 
-            :message="confirmMessage" 
-            @confirm="handleConfirm" 
-            @cancel="handleCancel" 
-        />
-    </div>
+                <ConfirmModal
+                    :show="showConfirmModal"
+                    :title="confirmTitle"
+                    :message="confirmMessage"
+                    :confirm-button-text="confirmButtonText"
+                    :cancel-button-text="cancelButtonText"
+                    :type="confirmType"
+                    @confirm="handleConfirm"
+                    @cancel="handleCancel"
+                />    </div>
 </template>
 
 <style scoped>

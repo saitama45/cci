@@ -108,6 +108,63 @@ const isIframe = computed(() => {
                          </div>
                     </div>
                 </div>
+
+                <!-- Customer Details Card -->
+                <div v-if="unit.reservations?.[0]?.customer" class="bg-white overflow-hidden shadow-sm sm:rounded-2xl border border-slate-100 p-6 md:p-8">
+                    <div class="flex items-center justify-between border-b border-slate-50 pb-4 mb-6">
+                        <h3 class="text-lg font-bold text-slate-900 flex items-center">
+                            <TagIcon class="w-5 h-5 mr-2 text-blue-600" />
+                            Customer Information
+                        </h3>
+                        <div 
+                            :class="[
+                                'px-4 py-1.5 rounded-full border text-xs font-bold uppercase tracking-widest shadow-sm flex items-center transition-all duration-300',
+                                statusColors[unit.status] || 'bg-slate-50 text-slate-500 border-slate-200'
+                            ]"
+                        >
+                            <span class="mr-1.5 opacity-60">Current</span>
+                            {{ unit.status }}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Customer Name</h4>
+                            <p class="text-base font-bold text-slate-900">{{ unit.reservations[0].customer.full_name }}</p>
+                            <p class="text-xs text-slate-500 font-medium">Account No: {{ unit.reservations[0].customer.account_no }}</p>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Contact Information</h4>
+                            <p class="text-sm font-semibold text-slate-700">{{ unit.reservations[0].customer.email }}</p>
+                            <p class="text-sm font-semibold text-slate-700">{{ unit.reservations[0].customer.contact_no }}</p>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Address</h4>
+                            <p class="text-sm font-medium text-slate-600">
+                                {{ unit.reservations[0].customer.home_no_street }}, 
+                                {{ unit.reservations[0].customer.barangay }},
+                                {{ unit.reservations[0].customer.city }}
+                            </p>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Reservation Status</h4>
+                            <div class="mt-1 flex flex-col space-y-1">
+                                <span class="text-sm font-bold text-slate-700">Fee: {{ parseFloat(unit.reservations[0].fee).toLocaleString('en-PH', { style: 'currency', currency: 'PHP' }) }}</span>
+                                <span class="text-xs text-slate-500">Date: {{ new Date(unit.reservations[0].reservation_date).toLocaleDateString() }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 pt-6 border-t border-slate-50 flex justify-end">
+                         <Link 
+                            :href="route('customers.show', unit.reservations[0].customer.id)"
+                            class="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center transition-colors"
+                        >
+                            View Customer Profile
+                            <ArrowLeftIcon class="w-4 h-4 ml-2 rotate-180" />
+                        </Link>
+                    </div>
+                </div>
             </div>
 
             <!-- Map Integration Data / Visualizer (Full Screen Width) -->

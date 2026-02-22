@@ -129,7 +129,9 @@ const uploadDocument = (requirementId, file) => {
 const deleteDocument = async (document) => {
     const confirmed = await confirm({
         title: 'Remove Document',
-        message: `Are you sure you want to remove the uploaded file "${document.file_name}"?`
+        message: `Are you sure you want to remove the uploaded file "${document.file_name}"?`,
+        confirmButtonText: 'Remove Document',
+        type: 'danger'
     });
 
     if (confirmed) {
@@ -327,7 +329,9 @@ const updateCustomer = () => {
 const deleteCustomer = async (customer) => {
     const confirmed = await confirm({
         title: 'Delete Customer',
-        message: `Are you sure you want to delete ${customer.full_name}? This will remove all their records.`
+        message: `Are you sure you want to delete ${customer.full_name}? This will remove all their records.`,
+        confirmButtonText: 'Delete Customer',
+        type: 'danger'
     });
     
     if (confirmed) {

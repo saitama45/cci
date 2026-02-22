@@ -184,7 +184,9 @@ const updatePriceList = () => {
 const deletePriceList = async (priceList) => {
     const confirmed = await confirm({
         title: 'Delete Price List',
-        message: `Are you sure you want to delete this price list entry? This action cannot be undone.`
+        message: `Are you sure you want to delete this price list entry? This action cannot be undone.`,
+        confirmButtonText: 'Delete Price',
+        type: 'danger'
     })
     
     if (confirmed) {
