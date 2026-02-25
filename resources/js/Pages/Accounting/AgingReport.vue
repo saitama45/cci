@@ -20,13 +20,13 @@ const props = defineProps({
 const asOfDate = ref(props.filters.as_of_date || new Date().toISOString().split('T')[0]);
 
 const applyFilters = () => {
-    router.get(route('accounting.aging-report'), {
+    router.get(route('accounting.ar-aging'), {
         as_of_date: asOfDate.value
     }, { preserveState: true, preserveScroll: true });
 };
 
 const exportPdf = () => {
-    const url = route('accounting.aging-report.export', {
+    const url = route('accounting.ar-aging.export', {
         as_of_date: asOfDate.value
     });
     window.open(url, '_blank');

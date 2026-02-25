@@ -212,9 +212,9 @@ class AccountingReportController extends Controller
     }
 
     /**
-     * Aging Report: Shows overdue payments categorized by age.
+     * AR Aging Report: Shows overdue payments from customers.
      */
-    public function agingReport(Request $request)
+    public function arAging(Request $request)
     {
         $asOfDate = $request->as_of_date ?: now()->format('Y-m-d');
         $data = $this->getAgingReportData($asOfDate);
@@ -226,6 +226,138 @@ class AccountingReportController extends Controller
             ],
             'totals' => $data['totals']
         ]);
+    }
+
+    /**
+     * AP Aging Report: Shows unpaid bills to vendors categorized by due date.
+     */
+    public function apAging(Request $request)
+    {
+        $asOfDate = $request->as_of_date ?: now()->format('Y-m-d');
+        $data = $this->getAPAgingData($asOfDate);
+
+        return Inertia::render('Accounting/APAgingReport', [
+            'report_data' => $data['report_data'],
+            'filters' => ['as_of_date' => $asOfDate],
+            'totals' => $data['totals']
+        ]);
+    }
+
+    /**
+     * Project P&L: Shows Profit and Loss per Project.
+     */
+    public function projectPL(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        
+        $startDate = $request->start_date ?: now()->startOfYear()->format('Y-m-d');
+        $endDate = $request->end_date ?: now()->format('Y-m-d');
+
+        $data = $this->getProjectPLData($companyId, $startDate, $endDate);
+
+        return Inertia::render('Accounting/ProjectPL', [
+            'projects' => $data['projects'],
+            'filters' => [
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ],
+            'totals' => $data['totals']
+        ]);
+    }
+
+    private function getAPAgingData($asOfDate)
+    {
+        $companyId = Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        $asOf = \Carbon\Carbon::parse($asOfDate)->endOfDay();
+
+        $bills = \App\Models\Bill::with(['vendor', 'project'])
+            ->where('company_id', $companyId)
+            ->whereIn('status', ['Approved', 'Partial', 'Overdue'])
+            ->get();
+
+        $reportData = $bills->map(function ($bill) use ($asOf) {
+            // For now, let's assume unpaid_amount = total_amount since we haven't implemented Disbursement fully
+            // Once Disbursement is added, we'd subtract payments.
+            $unpaid = (float)$bill->total_amount; 
+            
+            $daysOverdue = 0;
+            if ($bill->due_date && \Carbon\Carbon::parse($bill->due_date)->isBefore($asOf)) {
+                $daysOverdue = (int) \Carbon\Carbon::parse($bill->due_date)->diffInDays($asOf);
+            }
+
+            return (object)[
+                'bill_id' => $bill->id,
+                'vendor_name' => $bill->vendor->name ?? 'N/A',
+                'bill_number' => $bill->bill_number,
+                'project_name' => $bill->project->name ?? 'General',
+                'due_date' => $bill->due_date ? $bill->due_date->format('Y-m-d') : 'N/A',
+                'unpaid_amount' => $unpaid,
+                'current' => $daysOverdue === 0 ? $unpaid : 0,
+                '1_30' => ($daysOverdue > 0 && $daysOverdue <= 30) ? $unpaid : 0,
+                '31_60' => ($daysOverdue > 30 && $daysOverdue <= 60) ? $unpaid : 0,
+                '61_90' => ($daysOverdue > 60 && $daysOverdue <= 90) ? $unpaid : 0,
+                '91_over' => ($daysOverdue > 90) ? $unpaid : 0,
+                'days_overdue' => $daysOverdue
+            ];
+        })->filter(fn($r) => $r->unpaid_amount > 0)->values();
+
+        return [
+            'report_data' => $reportData,
+            'totals' => [
+                'current' => $reportData->sum('current'),
+                '1_30' => $reportData->sum('1_30'),
+                '31_60' => $reportData->sum('31_60'),
+                '61_90' => $reportData->sum('61_90'),
+                '91_over' => $reportData->sum('91_over'),
+                'total' => $reportData->sum('unpaid_amount'),
+            ]
+        ];
+    }
+
+    private function getProjectPLData($companyId, $startDate, $endDate)
+    {
+        $projects = \App\Models\Project::where('is_active', true)->get();
+        
+        $reportData = $projects->map(function ($project) use ($companyId, $startDate, $endDate) {
+            $lines = JournalEntryLine::where('project_id', $project->id)
+                ->whereHas('journalEntry', function($q) use ($companyId, $startDate, $endDate) {
+                    $q->where('company_id', $companyId)
+                      ->whereDate('transaction_date', '>=', $startDate)
+                      ->whereDate('transaction_date', '<=', $endDate);
+                })
+                ->with('chartOfAccount')
+                ->get();
+
+            $revenue = 0;
+            $expenses = 0;
+
+            foreach ($lines as $line) {
+                if ($line->chartOfAccount->type === 'revenue') {
+                    $revenue += ($line->credit - $line->debit);
+                } elseif (in_array($line->chartOfAccount->type, ['expense', 'asset'])) {
+                    // For assets, we consider the Debit (increase in cost) as the expense/outflow for P&L purposes
+                    $expenses += ($line->debit - $line->credit);
+                }
+            }
+
+            return (object)[
+                'id' => $project->id,
+                'name' => $project->name,
+                'revenue' => $revenue,
+                'expenses' => $expenses,
+                'net_profit' => $revenue - $expenses,
+            ];
+        })->filter(fn($p) => $p->revenue != 0 || $p->expenses != 0)->values();
+
+        return [
+            'projects' => $reportData,
+            'totals' => [
+                'revenue' => $reportData->sum('revenue'),
+                'expenses' => $reportData->sum('expenses'),
+                'net_profit' => $reportData->sum('net_profit'),
+            ]
+        ];
     }
 
     /**
@@ -369,7 +501,48 @@ class AccountingReportController extends Controller
             'company' => $company,
         ])->setPaper('a4', 'landscape');
 
-        return $pdf->stream('aging-report-as-of-' . $asOfDate . '.pdf');
+        return $pdf->stream('ar-aging-report-as-of-' . $asOfDate . '.pdf');
+    }
+
+    public function exportAPAging(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        $company = \App\Models\Company::find($companyId);
+        
+        $asOfDate = $request->as_of_date ?: now()->format('Y-m-d');
+        $data = $this->getAPAgingData($asOfDate);
+        
+        $pdf = Pdf::loadView('pdf.ap-aging', [
+            'report_data' => $data['report_data'],
+            'totals' => $data['totals'],
+            'asOfDate' => $asOfDate,
+            'company' => $company,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->stream('ap-aging-report-as-of-' . $asOfDate . '.pdf');
+    }
+
+    public function exportProjectPL(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        $company = \App\Models\Company::find($companyId);
+        
+        $startDate = $request->start_date ?: now()->startOfYear()->format('Y-m-d');
+        $endDate = $request->end_date ?: now()->format('Y-m-d');
+
+        $data = $this->getProjectPLData($companyId, $startDate, $endDate);
+        
+        $pdf = Pdf::loadView('pdf.project-pl', [
+            'projects' => $data['projects'],
+            'totals' => $data['totals'],
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'company' => $company,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->stream('project-pl-' . $startDate . '-to-' . $endDate . '.pdf');
     }
 
     private function getAgingReportData($asOfDate)

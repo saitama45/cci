@@ -76,6 +76,10 @@ class RoleService
             'label' => 'Vendors / Suppliers',
             'permissions' => ['view', 'create', 'edit', 'delete']
         ],
+        'bills' => [
+            'label' => 'Bills / Accounts Payable',
+            'permissions' => ['view', 'show', 'create', 'edit', 'delete', 'approve', 'cancel', 'debit_memo']
+        ],
         'collections' => [
             'label' => 'Collections',
             'permissions' => ['view']

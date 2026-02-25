@@ -19,6 +19,14 @@ class AccountingService
         return DB::transaction(function () use ($payment, $principal, $interest) {
             $companyId = $payment->company_id;
             $type = $payment->payment_type;
+            
+            // Get Project ID from unit (if available)
+            $projectId = null;
+            if ($payment->contractedSale && $payment->contractedSale->unit) {
+                $projectId = $payment->contractedSale->unit->project_id;
+            } elseif ($payment->reservation && $payment->reservation->unit) {
+                $projectId = $payment->reservation->unit->project_id;
+            }
 
             // 1. Get Base Accounts
             $cashAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '1010')->first();
@@ -75,6 +83,7 @@ class AccountingService
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $cashAccount->id,
+                'project_id' => $projectId,
                 'debit' => $payment->amount,
                 'credit' => 0,
                 'memo' => "Receipt of {$type}",
@@ -85,6 +94,7 @@ class AccountingService
                 JournalEntryLine::create([
                     'journal_entry_id' => $journalEntry->id,
                     'chart_of_account_id' => $line['account_id'],
+                    'project_id' => $projectId,
                     'debit' => 0,
                     'credit' => $line['amount'],
                     'memo' => $line['memo'],
@@ -140,6 +150,7 @@ class AccountingService
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $liabilityAccount->id,
+                'project_id' => $reservation->unit?->project_id,
                 'debit' => $amount,
                 'credit' => 0,
                 'memo' => 'Applying reservation deposit to revenue',
@@ -149,6 +160,7 @@ class AccountingService
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $revenueAccount->id,
+                'project_id' => $reservation->unit?->project_id,
                 'debit' => 0,
                 'credit' => $amount,
                 'memo' => 'Property sales revenue recognition',
@@ -191,6 +203,7 @@ class AccountingService
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $liabilityAccount->id,
+                'project_id' => $reservation->unit?->project_id,
                 'debit' => $amount,
                 'credit' => 0,
                 'memo' => 'Refunded deposit to customer',
@@ -200,6 +213,7 @@ class AccountingService
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $cashAccount->id,
+                'project_id' => $reservation->unit?->project_id,
                 'debit' => 0,
                 'credit' => $amount,
                 'memo' => 'Cash/Check refund for reservation',
@@ -242,6 +256,7 @@ class AccountingService
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $liabilityAccount->id,
+                'project_id' => $reservation->unit?->project_id,
                 'debit' => $amount,
                 'credit' => 0,
                 'memo' => 'Forfeited deposit due to cancellation',
@@ -251,6 +266,7 @@ class AccountingService
             JournalEntryLine::create([
                 'journal_entry_id' => $journalEntry->id,
                 'chart_of_account_id' => $otherIncomeAccount->id,
+                'project_id' => $reservation->unit?->project_id,
                 'debit' => 0,
                 'credit' => $amount,
                 'memo' => 'Forfeited reservation fee income',
@@ -395,6 +411,165 @@ class AccountingService
                 'credit' => $amount,
                 'memo' => 'Reduction of inventory for sale',
             ]);
+
+            return $journalEntry;
+        });
+    }
+
+    /**
+     * Records a bill from a vendor (Accounts Payable).
+     * Debit: Various Expense/Asset Accounts
+     * Credit: Accounts Payable (Liability)
+     */
+    public function recordBill($bill)
+    {
+        return DB::transaction(function () use ($bill) {
+            $companyId = $bill->company_id;
+            
+            // 1. Get Accounts Payable account (2300)
+            $apAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '2300')->first();
+            
+            if (!$apAccount) {
+                throw new \Exception("Accounts Payable account (2300) not found.");
+            }
+
+            // 2. Create Journal Entry Header
+            $journalEntry = JournalEntry::create([
+                'company_id' => $companyId,
+                'user_id' => Auth::id(),
+                'transaction_date' => $bill->bill_date,
+                'reference_no' => $bill->bill_number,
+                'referenceable_type' => get_class($bill),
+                'referenceable_id' => $bill->id,
+                'description' => "Bill from " . ($bill->vendor->name ?? 'Vendor'),
+            ]);
+
+            // 3. Create Debit Lines for each Bill Item
+            foreach ($bill->items as $item) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journalEntry->id,
+                    'chart_of_account_id' => $item->chart_of_account_id,
+                    'project_id' => $item->project_id ?? $bill->project_id,
+                    'debit' => $item->amount,
+                    'credit' => 0,
+                    'memo' => $item->description ?? $bill->notes,
+                ]);
+            }
+
+            // 4. Create Credit Line for Accounts Payable (Total Amount)
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $apAccount->id,
+                'project_id' => $bill->project_id,
+                'debit' => 0,
+                'credit' => $bill->total_amount,
+                'memo' => "Liability recorded for bill #" . $bill->bill_number,
+            ]);
+
+            // 5. Link Journal Entry to Bill
+            $bill->update(['journal_entry_id' => $journalEntry->id]);
+
+            return $journalEntry;
+        });
+    }
+
+    /**
+     * Reverses a previously posted bill.
+     * Creates a reversal entry: 
+     * Debit: Accounts Payable
+     * Credit: Original Expense/Asset Accounts
+     */
+    public function reverseBill($bill)
+    {
+        return DB::transaction(function () use ($bill) {
+            if (!$bill->journal_entry_id) {
+                return null;
+            }
+
+            $originalEntry = JournalEntry::with('lines')->find($bill->journal_entry_id);
+            if (!$originalEntry) {
+                return null;
+            }
+
+            // Create Reversal Header
+            $reversalEntry = JournalEntry::create([
+                'company_id' => $bill->company_id,
+                'user_id' => Auth::id(),
+                'transaction_date' => now(),
+                'reference_no' => "REV-" . $bill->bill_number,
+                'referenceable_type' => get_class($bill),
+                'referenceable_id' => $bill->id,
+                'description' => "Reversal of " . $bill->type . " #" . $bill->bill_number,
+            ]);
+
+            // Flip the Lines: Original Debits become Credits, Original Credits become Debits
+            foreach ($originalEntry->lines as $line) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $reversalEntry->id,
+                    'chart_of_account_id' => $line->chart_of_account_id,
+                    'project_id' => $line->project_id,
+                    'debit' => $line->credit, // Flip
+                    'credit' => $line->debit, // Flip
+                    'memo' => "Reversal: " . $line->memo,
+                ]);
+            }
+
+            return $reversalEntry;
+        });
+    }
+
+    /**
+     * Records a debit memo (Vendor Credit).
+     * Debit: Accounts Payable (Liability reduction)
+     * Credit: Various Expense/Asset Accounts (Expense reduction)
+     */
+    public function recordDebitMemo($bill)
+    {
+        return DB::transaction(function () use ($bill) {
+            $companyId = $bill->company_id;
+            
+            // 1. Get Accounts Payable account (2300)
+            $apAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '2300')->first();
+            
+            if (!$apAccount) {
+                throw new \Exception("Accounts Payable account (2300) not found.");
+            }
+
+            // 2. Create Journal Entry Header
+            $journalEntry = JournalEntry::create([
+                'company_id' => $companyId,
+                'user_id' => Auth::id(),
+                'transaction_date' => $bill->bill_date,
+                'reference_no' => $bill->bill_number,
+                'referenceable_type' => get_class($bill),
+                'referenceable_id' => $bill->id,
+                'description' => "Debit Memo from " . ($bill->vendor->name ?? 'Vendor'),
+            ]);
+
+            // 3. Create Debit Line for Accounts Payable (Total Amount)
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $apAccount->id,
+                'project_id' => $bill->project_id,
+                'debit' => $bill->total_amount, // Positive debit reduces liability
+                'credit' => 0,
+                'memo' => "Liability reduced via Debit Memo #" . $bill->bill_number,
+            ]);
+
+            // 4. Create Credit Lines for each Item (Reducing Expense/Asset)
+            foreach ($bill->items as $item) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journalEntry->id,
+                    'chart_of_account_id' => $item->chart_of_account_id,
+                    'project_id' => $item->project_id ?? $bill->project_id,
+                    'debit' => 0,
+                    'credit' => $item->amount,
+                    'memo' => $item->description ?? $bill->notes,
+                ]);
+            }
+
+            // 5. Link Journal Entry to Bill
+            $bill->update(['journal_entry_id' => $journalEntry->id]);
 
             return $journalEntry;
         });

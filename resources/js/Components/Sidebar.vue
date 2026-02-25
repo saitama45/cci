@@ -350,6 +350,29 @@ const handleMouseLeave = () => {
                         <span v-if="!isCollapsed" class="font-medium text-sm">Vendor Management</span>
                     </Link>
 
+                    <!-- Bills / Accounts Payable -->
+                    <Link
+                        v-if="hasPermission('bills.view')"
+                        :href="route('accounting.bills.index')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('accounting.bills.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'Bills / Accounts Payable')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ClipboardDocumentListIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('accounting.bills.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Bills / AP</span>
+                    </Link>
+
                     <!-- Journal Entries -->
                     <Link
                         v-if="hasPermission('journal_entries.view')"
@@ -465,27 +488,73 @@ const handleMouseLeave = () => {
                         <span v-if="!isCollapsed" class="font-medium text-sm">General Ledger</span>
                     </Link>
 
-                    <!-- Aging Report -->
+                    <!-- Project P&L -->
                     <Link
                         v-if="hasPermission('accounting.view')"
-                        :href="route('accounting.aging-report')"
+                        :href="route('accounting.project-pl')"
                         :class="[
                             'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.aging-report')
+                            route().current('accounting.project-pl')
                                 ? 'bg-slate-800 text-white'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                        @mouseenter="handleMouseEnter($event, 'Aging Report')"
+                        @mouseenter="handleMouseEnter($event, 'Project P&L')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ChartPieIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('accounting.project-pl') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">Project P&L</span>
+                    </Link>
+
+                    <!-- AR Aging Report -->
+                    <Link
+                        v-if="hasPermission('accounting.view')"
+                        :href="route('accounting.ar-aging')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('accounting.ar-aging')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'AR Aging Report')"
                         @mouseleave="handleMouseLeave"
                     >
                         <ClockIcon
                             :class="[
                                 'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.aging-report') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                route().current('accounting.ar-aging') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
                                 isCollapsed ? 'mx-auto' : 'mr-3'
                             ]"
                         />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Aging Report</span>
+                        <span v-if="!isCollapsed" class="font-medium text-sm">AR Aging</span>
+                    </Link>
+
+                    <!-- AP Aging Report -->
+                    <Link
+                        v-if="hasPermission('accounting.view')"
+                        :href="route('accounting.ap-aging')"
+                        :class="[
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                            route().current('accounting.ap-aging')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                        @mouseenter="handleMouseEnter($event, 'AP Aging Report')"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <ClockIcon
+                            :class="[
+                                'w-5 h-5 flex-shrink-0 transition-colors',
+                                route().current('accounting.ap-aging') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
+                                isCollapsed ? 'mx-auto' : 'mr-3'
+                            ]"
+                        />
+                        <span v-if="!isCollapsed" class="font-medium text-sm">AP Aging</span>
                     </Link>
 
                     <!-- Overall Receivables -->

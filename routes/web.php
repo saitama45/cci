@@ -44,13 +44,30 @@ Route::middleware('auth')->group(function () {
             Route::get('api/customers/{customer}/contracts', [\App\Http\Controllers\PaymentController::class, 'getCustomerContracts'])->name('api.customers.contracts');
             Route::get('api/contracts/{contract}/schedules', [\App\Http\Controllers\PaymentController::class, 'getContractSchedules'])->name('api.contracts.schedules');
             Route::resource('chart-of-accounts', \App\Http\Controllers\ChartOfAccountController::class);
+            Route::resource('bills', \App\Http\Controllers\BillController::class)->names([
+                'index' => 'accounting.bills.index',
+                'create' => 'accounting.bills.create',
+                'store' => 'accounting.bills.store',
+                'show' => 'accounting.bills.show',
+                'edit' => 'accounting.bills.edit',
+                'update' => 'accounting.bills.update',
+                'destroy' => 'accounting.bills.destroy',
+            ]);
 
             // Accounting Reports
             Route::get('accounting/trial-balance', [\App\Http\Controllers\AccountingReportController::class, 'trialBalance'])->name('accounting.trial-balance');
             Route::get('accounting/trial-balance/export', [\App\Http\Controllers\AccountingReportController::class, 'exportTrialBalance'])->name('accounting.trial-balance.export');
             Route::get('accounting/general-ledger', [\App\Http\Controllers\AccountingReportController::class, 'generalLedger'])->name('accounting.general-ledger');
             Route::get('accounting/general-ledger/export', [\App\Http\Controllers\AccountingReportController::class, 'exportGeneralLedger'])->name('accounting.general-ledger.export');
-            Route::get('accounting/aging-report', [\App\Http\Controllers\AccountingReportController::class, 'agingReport'])->name('accounting.aging-report');
+            
+            Route::get('accounting/ar-aging', [\App\Http\Controllers\AccountingReportController::class, 'arAging'])->name('accounting.ar-aging');
+            Route::get('accounting/ap-aging', [\App\Http\Controllers\AccountingReportController::class, 'apAging'])->name('accounting.ap-aging');
+            Route::get('accounting/project-pl', [\App\Http\Controllers\AccountingReportController::class, 'projectPL'])->name('accounting.project-pl');
+            
+            Route::get('accounting/ar-aging/export', [\App\Http\Controllers\AccountingReportController::class, 'exportAgingReport'])->name('accounting.ar-aging.export');
+            Route::get('accounting/ap-aging/export', [\App\Http\Controllers\AccountingReportController::class, 'exportAPAging'])->name('accounting.ap-aging.export');
+            Route::get('accounting/project-pl/export', [\App\Http\Controllers\AccountingReportController::class, 'exportProjectPL'])->name('accounting.project-pl.export');
+            
             Route::get('accounting/aging-report/export', [\App\Http\Controllers\AccountingReportController::class, 'exportAgingReport'])->name('accounting.aging-report.export');
             Route::get('accounting/overall-receivables', [\App\Http\Controllers\AccountingReportController::class, 'overallReceivables'])->name('accounting.overall-receivables');
             Route::get('accounting/overall-receivables/export', [\App\Http\Controllers\AccountingReportController::class, 'exportOverallReceivables'])->name('accounting.overall-receivables.export');

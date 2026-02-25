@@ -5,22 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class JournalEntryLine extends Model
+class BillItem extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'journal_entry_id',
+        'bill_id',
         'chart_of_account_id',
+        'description',
+        'amount',
         'project_id',
-        'debit',
-        'credit',
-        'memo',
+        'unit_id',
     ];
 
-    public function journalEntry()
+    protected $casts = [
+        'amount' => 'decimal:4',
+    ];
+
+    public function bill()
     {
-        return $this->belongsTo(JournalEntry::class);
+        return $this->belongsTo(Bill::class);
     }
 
     public function chartOfAccount()
@@ -31,5 +35,10 @@ class JournalEntryLine extends Model
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class);
     }
 }
