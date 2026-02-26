@@ -24,7 +24,7 @@ import { Link } from '@inertiajs/vue3';
                 </h1>
                 
                 <p class="text-lg text-slate-300 leading-relaxed mb-10 font-light">
-                    The unified management platform for <span class="text-white font-medium">Community Creators, Inc.</span> Streamlining property inventory, sales reservations, collections, and financial integrity.
+                    The unified management platform for <span class="text-white font-medium">Real Estate Developers</span> Streamlining property inventory, sales reservations, collections, and financial integrity.
                 </p>
 
                 <!-- Stats or Trust Indicators -->
@@ -60,7 +60,7 @@ import { Link } from '@inertiajs/vue3';
 
              <div class="mt-8 text-center lg:hidden">
                 <p class="text-xs text-gray-400">
-                    &copy; 2026 Community Creators, Inc. | Horizon ERP
+                    &copy; 2026 Real Estate Developers | Horizon ERP
                 </p>
             </div>
         </div>

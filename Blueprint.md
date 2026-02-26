@@ -1,6 +1,6 @@
 # 🏗️ GalgaTech Horizon ERP: Full Database & Logic Blueprint
 
-**Target:** Community Creators, Inc. (CCI)
+**Target:** Real Estate Developers
 
 **Engine:** Microsoft SQL Server (MSSQL)
 

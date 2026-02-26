@@ -294,8 +294,8 @@ const openCreateModal = () => {
     form.name = ''
     form.permissions = []
     
-    // Default select "Community Creators Inc." if it exists
-    const defaultCompany = props.companies.find(c => c.name.toLowerCase().includes('community creators inc'));
+    // Default select "Real Estate Developers" if it exists
+    const defaultCompany = props.companies.find(c => c.name.toLowerCase().includes('real estate developers'));
     form.company_ids = defaultCompany ? [defaultCompany.id] : []
     
     showModal.value = true
