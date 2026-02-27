@@ -34,6 +34,7 @@ const formatDate = (dateString) => {
 
 const form = useForm({
     vendor_id: props.bill?.vendor_id || props.prePopulated?.vendor_id || '',
+    purchase_order_id: props.bill?.purchase_order_id || props.prePopulated?.purchase_order_id || null,
     type: props.bill?.type || props.prePopulated?.type || 'Bill',
     bill_number: props.bill?.bill_number || '',
     bill_date: formatDate(props.bill?.bill_date) || new Date().toISOString().substr(0, 10),
@@ -41,6 +42,8 @@ const form = useForm({
     project_id: props.bill?.project_id || props.prePopulated?.project_id || '',
     notes: props.bill?.notes || props.prePopulated?.notes || '',
     status: props.bill?.status || 'Draft',
+    tax_type: props.bill?.tax_type || 'VAT Exclusive',
+    ewt_rate: props.bill?.ewt_rate || 0,
     items: props.bill?.items?.map(item => ({
         chart_of_account_id: item.chart_of_account_id,
         description: item.description,
@@ -52,6 +55,34 @@ const form = useForm({
     })) || [
         { chart_of_account_id: '', description: '', amount: 0, project_id: '' }
     ]
+});
+
+// Tax Calculations
+const grossAmount = computed(() => {
+    return form.items.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+});
+
+const vatAmount = computed(() => {
+    if (form.tax_type === 'VAT Inclusive') {
+        const net = grossAmount.value / 1.12;
+        return grossAmount.value - net;
+    } else if (form.tax_type === 'VAT Exclusive') {
+        return grossAmount.value * 0.12;
+    }
+    return 0;
+});
+
+const totalWithVat = computed(() => {
+    return form.tax_type === 'VAT Exclusive' ? grossAmount.value + vatAmount.value : grossAmount.value;
+});
+
+const ewtAmount = computed(() => {
+    const netOfVat = form.tax_type === 'VAT Inclusive' ? (grossAmount.value / 1.12) : grossAmount.value;
+    return netOfVat * (form.ewt_rate / 100);
+});
+
+const netAmount = computed(() => {
+    return totalWithVat.value - ewtAmount.value;
 });
 
 const isDebitMemo = computed(() => form.type === 'Debit Memo');
@@ -168,6 +199,10 @@ watch(() => form.vendor_id, (newVendorId) => {
                                     />
                                     <div v-if="form.errors.vendor_id" class="text-red-500 text-xs mt-1 italic">{{ form.errors.vendor_id }}</div>
                                 </div>
+                                <div v-if="form.purchase_order_id" class="p-3 bg-indigo-50 rounded-lg border border-indigo-100 flex items-center">
+                                    <InformationCircleIcon class="w-4 h-4 mr-2 text-indigo-500" />
+                                    <span class="text-xs font-bold text-indigo-700 uppercase tracking-widest">Linked to PO #{{ bill?.purchase_order_id }}</span>
+                                </div>
                             </div>
 
                             <div class="space-y-4">
@@ -197,28 +232,46 @@ watch(() => form.vendor_id, (newVendorId) => {
                             </div>
 
                             <div class="space-y-4">
-                                <div>
-                                    <label class="block text-sm font-bold text-gray-700 mb-1">Due Date</label>
-                                    <input
-                                        v-model="form.due_date"
-                                        type="date"
-                                        class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"
-                                    />
-                                    <div v-if="form.errors.due_date" class="text-red-500 text-xs mt-1 italic">{{ form.errors.due_date }}</div>
+                                <div class="bg-slate-900 p-4 rounded-xl text-white space-y-2">
+                                    <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        <span>Subtotal</span>
+                                        <span>{{ formatCurrency(grossAmount) }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        <span>VAT (12%)</span>
+                                        <span>{{ formatCurrency(vatAmount) }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-[10px] font-bold text-rose-400 uppercase tracking-widest">
+                                        <span>EWT Deduction</span>
+                                        <span>({{ formatCurrency(ewtAmount) }})</span>
+                                    </div>
+                                    <div class="pt-2 border-t border-white/10">
+                                        <p class="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Final Net Amount</p>
+                                        <h3 class="text-xl font-black">{{ formatCurrency(netAmount) }}</h3>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-gray-700 mb-1">Tag to Project (Global)</label>
-                                    <select
-                                        v-model="form.project_id"
-                                        class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"
-                                    >
-                                        <option value="">No Project</option>
-                                        <option v-for="project in projects" :key="project.id" :value="project.id">
-                                            {{ project.name }}
-                                        </option>
-                                    </select>
-                                    <div v-if="form.errors.project_id" class="text-red-500 text-xs mt-1 italic">{{ form.errors.project_id }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Tax Settings -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 p-6 bg-slate-50 rounded-xl border border-slate-200">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">VAT Setting</label>
+                                <div class="flex p-1 bg-slate-200/50 rounded-xl space-x-1">
+                                    <button type="button" @click="form.tax_type = 'VAT Exclusive'" :class="['flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all', form.tax_type === 'VAT Exclusive' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">VAT Exclusive</button>
+                                    <button type="button" @click="form.tax_type = 'VAT Inclusive'" :class="['flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all', form.tax_type === 'VAT Inclusive' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">VAT Inclusive</button>
+                                    <button type="button" @click="form.tax_type = 'Non-VAT'" :class="['flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all', form.tax_type === 'Non-VAT' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">Non-VAT</button>
                                 </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Withholding Tax (EWT %)</label>
+                                <select v-model="form.ewt_rate" class="block w-full rounded-xl border-slate-200 bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-bold text-slate-700">
+                                    <option :value="0">0% - No Withholding</option>
+                                    <option :value="1">1% - Purchase of Goods</option>
+                                    <option :value="2">2% - Purchase of Services</option>
+                                    <option :value="5">5% - Professional Fees</option>
+                                    <option :value="10">10% - Rentals/Others</option>
+                                </select>
                             </div>
                         </div>
 
@@ -303,23 +356,38 @@ watch(() => form.vendor_id, (newVendorId) => {
                                             </td>
                                         </tr>
                                     </tbody>
-                                    <tfoot class="bg-gray-50">
+                                    <tfoot class="bg-gray-50/50">
                                         <tr>
-                                            <td colspan="2" class="px-4 py-3">
+                                            <td colspan="2" class="px-6 py-4">
                                                 <button
                                                     type="button"
                                                     @click="addItem"
-                                                    class="inline-flex items-center text-sm text-indigo-600 font-bold hover:text-indigo-900"
+                                                    class="inline-flex items-center text-sm text-indigo-600 font-bold hover:text-indigo-900 px-4 py-2 bg-indigo-50 rounded-xl border border-indigo-100 transition-all"
                                                 >
                                                     <PlusIcon class="w-4 h-4 mr-1" />
                                                     Add Line
                                                 </button>
                                             </td>
-                                            <td class="px-4 py-3 text-right font-bold text-lg text-gray-900">
-                                                <span class="text-xs font-normal text-gray-500 mr-2 uppercase">Total:</span>
-                                                {{ formatCurrency(totalAmount) }}
+                                            <td colspan="3" class="px-6 py-4">
+                                                <div class="flex flex-col items-end space-y-2 max-w-xs ml-auto">
+                                                    <div class="flex justify-between w-full text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                                        <span>Subtotal (Net)</span>
+                                                        <span>{{ formatCurrency(grossAmount) }}</span>
+                                                    </div>
+                                                    <div v-if="parseFloat(vatAmount) > 0" class="flex justify-between w-full text-[10px] font-black text-indigo-500 uppercase tracking-widest">
+                                                        <span>VAT (12%)</span>
+                                                        <span>+ {{ formatCurrency(vatAmount) }}</span>
+                                                    </div>
+                                                    <div v-if="parseFloat(ewtAmount) > 0" class="flex justify-between w-full text-[10px] font-black text-rose-500 uppercase tracking-widest">
+                                                        <span>EWT Deduction</span>
+                                                        <span>- {{ formatCurrency(ewtAmount) }}</span>
+                                                    </div>
+                                                    <div class="pt-3 border-t-2 border-indigo-100 flex justify-between w-full items-baseline">
+                                                        <span class="text-xs font-black text-gray-500 uppercase tracking-tighter">Net Payable</span>
+                                                        <span class="text-2xl font-black text-indigo-700 ml-4">{{ formatCurrency(netAmount) }}</span>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td colspan="2"></td>
                                         </tr>
                                     </tfoot>
                                 </table>

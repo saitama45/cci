@@ -160,4 +160,134 @@ class ContractedSalesController extends Controller
             'sale' => $sale
         ]);
     }
+
+    /**
+     * Display the Customer Ledger.
+     */
+    public function ledger($id)
+    {
+        $sale = ContractedSale::with(['customer', 'unit.project'])->findOrFail($id);
+        
+        // 1. Opening Balance: Total Contract Price (Debit)
+        $openingEntry = (object)[
+            'transaction_date' => $sale->created_at,
+            'description' => "Opening Balance: Total Contract Price",
+            'debit' => (float)$sale->tcp,
+            'credit' => 0,
+            'status' => 'Posted'
+        ];
+
+        // 2. Assessments (Interest components from schedules)
+        $debits = $sale->paymentSchedules()
+            ->select('due_date as transaction_date', 'type', 'interest as debit', DB::raw('0 as credit'), 'installment_no', 'status')
+            ->where('interest', '>', 0)
+            ->get()
+            ->map(function($item) {
+                $item->description = "Interest Assessment for " . $item->type . " #{$item->installment_no}";
+                return $item;
+            });
+
+        // 3. Credits (Recorded Payments)
+        $credits = $sale->payments()
+            ->select('payment_date as transaction_date', 'payment_method', DB::raw('0 as debit'), 'amount as credit', 'reference_no', 'notes')
+            ->get()
+            ->map(function($item) {
+                $item->description = "Payment via " . $item->payment_method . " (Ref: " . $item->reference_no . ")";
+                $item->status = 'Posted';
+                return $item;
+            });
+
+        // 4. PDCs (Only those NOT yet posted as payments)
+        $pdcs = \App\Models\PdcVault::where('customer_id', $sale->customer_id)
+            ->where('status', 'Pending')
+            ->where('type', 'Inward')
+            ->whereNull('payment_id') // CRITICAL: Prevent double counting
+            ->get()
+            ->map(function($pdc) {
+                return (object)[
+                    'transaction_date' => $pdc->check_date,
+                    'description' => "PDC Check #{$pdc->check_no} ({$pdc->bank_name})",
+                    'debit' => 0,
+                    'credit' => (float)$pdc->amount,
+                    'is_pdc' => true,
+                    'status' => 'Vaulted'
+                ];
+            });
+
+        // Merge and Sort
+        $ledger = collect([$openingEntry])->concat($debits)->concat($credits)->concat($pdcs)->sortBy('transaction_date')->values();
+
+        // Calculate Running Balance
+        $runningBalance = 0;
+        $ledger = $ledger->map(function($item) use (&$runningBalance) {
+            $runningBalance += ($item->debit - $item->credit);
+            $item->running_balance = $runningBalance;
+            return $item;
+        });
+
+        // Summary Calculations
+        $totalEquity = (float)$sale->payments()->where('payment_type', '!=', 'Amortization')->sum('amount');
+        $totalAmort = (float)$sale->payments()->where('payment_type', 'Amortization')->sum('amount');
+        $pendingPdcs = (float)\App\Models\PdcVault::where('customer_id', $sale->customer_id)
+            ->where('status', 'Pending')
+            ->where('type', 'Inward')
+            ->whereNull('payment_id')
+            ->sum('amount');
+
+        return Inertia::render('Sales/ContractedSales/Ledger', [
+            'sale' => $sale,
+            'ledger' => $ledger,
+            'summary' => [
+                'total_contract_price' => (float)$sale->tcp,
+                'equity_paid' => $totalEquity,
+                'amort_paid' => $totalAmort,
+                'pending_pdcs' => $pendingPdcs,
+                'total_paid' => $totalEquity + $totalAmort,
+                'outstanding_balance' => $runningBalance,
+            ]
+        ]);
+    }
+
+    /**
+     * Export Statement of Account (SOA) PDF.
+     */
+    public function exportSOA($id)
+    {
+        $sale = ContractedSale::with(['customer', 'unit.project', 'company'])->findOrFail($id);
+        
+        $now = now();
+        $startOfMonth = $now->copy()->startOfMonth();
+        $endOfMonth = $now->copy()->endOfMonth();
+
+        // 1. Arrears: Pending items strictly BEFORE this month
+        $arrears = $sale->paymentSchedules()
+            ->where('status', 'Pending')
+            ->whereDate('due_date', '<', $startOfMonth)
+            ->orderBy('due_date')
+            ->get();
+
+        // 2. Current Month Dues: Pending items within this month
+        $currentDue = $sale->paymentSchedules()
+            ->where('status', 'Pending')
+            ->whereBetween('due_date', [$startOfMonth, $endOfMonth])
+            ->orderBy('due_date')
+            ->get();
+
+        // 3. Future Dues: All other pending items AFTER this month
+        $futureDues = $sale->paymentSchedules()
+            ->where('status', 'Pending')
+            ->whereDate('due_date', '>', $endOfMonth)
+            ->orderBy('due_date')
+            ->get();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.soa', [
+            'sale' => $sale,
+            'arrears' => $arrears,
+            'currentDue' => $currentDue,
+            'futureDues' => $futureDues,
+            'asOfDate' => $now,
+        ]);
+
+        return $pdf->stream("SOA-{$sale->contract_no}.pdf");
+    }
 }

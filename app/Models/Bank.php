@@ -5,22 +5,28 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Project extends Model
+class Bank extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'company_id',
-        'code',
         'name',
-        'location',
-        'map_overlay',
+        'code',
+        'branch',
+        'cheque_config',
         'is_active',
     ];
 
     protected $casts = [
+        'cheque_config' => 'array',
         'is_active' => 'boolean',
     ];
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
 
     public function scopeActive($query)
     {

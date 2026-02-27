@@ -111,6 +111,7 @@ class BillController extends Controller
     {
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
+            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
             'type' => 'required|in:Bill,Debit Memo',
             'bill_number' => 'required|string|max:50',
             'bill_date' => 'required|date',
@@ -118,6 +119,8 @@ class BillController extends Controller
             'project_id' => 'nullable|exists:projects,id',
             'notes' => 'nullable|string',
             'status' => 'required|in:Draft,Approved',
+            'tax_type' => 'required|in:VAT Inclusive,VAT Exclusive,Non-VAT',
+            'ewt_rate' => 'required|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.chart_of_account_id' => 'required|exists:chart_of_accounts,id',
             'items.*.description' => 'required|string',
@@ -126,17 +129,36 @@ class BillController extends Controller
         ]);
 
         return DB::transaction(function () use ($validated) {
-            $totalAmount = collect($validated['items'])->sum('amount');
+            $grossAmount = collect($validated['items'])->sum('amount');
             $companyId = Auth::user()->company_id ?? (\App\Models\Company::first()->id ?? null);
+
+            // Calculate Taxes
+            $vatAmount = 0;
+            $netOfVat = $grossAmount;
+
+            if ($validated['tax_type'] === 'VAT Inclusive') {
+                $netOfVat = $grossAmount / 1.12;
+                $vatAmount = $grossAmount - $netOfVat;
+            } elseif ($validated['tax_type'] === 'VAT Exclusive') {
+                $vatAmount = $grossAmount * 0.12;
+                $grossAmount = $grossAmount + $vatAmount;
+            }
+
+            $ewtAmount = $netOfVat * ($validated['ewt_rate'] / 100);
+            $netAmount = $grossAmount - $ewtAmount;
 
             $bill = Bill::create([
                 'company_id' => $companyId,
                 'vendor_id' => $validated['vendor_id'],
+                'purchase_order_id' => $validated['purchase_order_id'] ?? null,
                 'type' => $validated['type'],
                 'bill_number' => $validated['bill_number'],
                 'bill_date' => $validated['bill_date'],
                 'due_date' => $validated['due_date'],
-                'total_amount' => $totalAmount,
+                'total_amount' => $grossAmount,
+                'vat_amount' => $vatAmount,
+                'ewt_amount' => $ewtAmount,
+                'net_amount' => $netAmount,
                 'status' => $validated['status'],
                 'notes' => $validated['notes'],
                 'project_id' => $validated['project_id'],
@@ -240,6 +262,7 @@ class BillController extends Controller
 
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
+            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
             'type' => 'required|in:Bill,Debit Memo',
             'bill_number' => 'required|string|max:50',
             'bill_date' => 'required|date',
@@ -247,6 +270,8 @@ class BillController extends Controller
             'project_id' => 'nullable|exists:projects,id',
             'notes' => 'nullable|string',
             'status' => 'required|in:Draft,Approved',
+            'tax_type' => 'required|in:VAT Inclusive,VAT Exclusive,Non-VAT',
+            'ewt_rate' => 'required|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.chart_of_account_id' => 'required|exists:chart_of_accounts,id',
             'items.*.description' => 'required|string',
@@ -255,15 +280,34 @@ class BillController extends Controller
         ]);
 
         return DB::transaction(function () use ($validated, $bill) {
-            $totalAmount = collect($validated['items'])->sum('amount');
+            $grossAmount = collect($validated['items'])->sum('amount');
             
+            // Calculate Taxes
+            $vatAmount = 0;
+            $netOfVat = $grossAmount;
+
+            if ($validated['tax_type'] === 'VAT Inclusive') {
+                $netOfVat = $grossAmount / 1.12;
+                $vatAmount = $grossAmount - $netOfVat;
+            } elseif ($validated['tax_type'] === 'VAT Exclusive') {
+                $vatAmount = $grossAmount * 0.12;
+                $grossAmount = $grossAmount + $vatAmount;
+            }
+
+            $ewtAmount = $netOfVat * ($validated['ewt_rate'] / 100);
+            $netAmount = $grossAmount - $ewtAmount;
+
             $bill->update([
                 'vendor_id' => $validated['vendor_id'],
+                'purchase_order_id' => $validated['purchase_order_id'] ?? null,
                 'type' => $validated['type'],
                 'bill_number' => $validated['bill_number'],
                 'bill_date' => $validated['bill_date'],
                 'due_date' => $validated['due_date'],
-                'total_amount' => $totalAmount,
+                'total_amount' => $grossAmount,
+                'vat_amount' => $vatAmount,
+                'ewt_amount' => $ewtAmount,
+                'net_amount' => $netAmount,
                 'status' => $validated['status'],
                 'notes' => $validated['notes'],
                 'project_id' => $validated['project_id'],

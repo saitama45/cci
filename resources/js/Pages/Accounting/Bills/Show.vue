@@ -280,12 +280,30 @@ const deleteBill = async () => {
                                             </td>
                                         </tr>
                                     </tbody>
-                                    <tfoot class="bg-gray-50/50">
+                                    <tfoot class="bg-slate-50/50">
                                         <tr>
-                                            <td colspan="3" class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                                {{ bill.type === 'Debit Memo' ? 'Total Reduction' : 'Grand Total' }}
+                                            <td colspan="3" class="px-6 py-2 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                Subtotal (Net of VAT)
                                             </td>
-                                            <td class="px-6 py-4 text-right text-xl font-black text-indigo-700">{{ formatCurrency(bill.total_amount) }}</td>
+                                            <td class="px-6 py-2 text-right text-sm font-bold text-gray-600">{{ formatCurrency(bill.items.reduce((sum, i) => sum + parseFloat(i.amount), 0)) }}</td>
+                                        </tr>
+                                        <tr v-if="parseFloat(bill.vat_amount) > 0">
+                                            <td colspan="3" class="px-6 py-2 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                VAT (12%)
+                                            </td>
+                                            <td class="px-6 py-2 text-right text-sm font-bold text-indigo-600">+ {{ formatCurrency(bill.vat_amount) }}</td>
+                                        </tr>
+                                        <tr v-if="parseFloat(bill.ewt_amount) > 0">
+                                            <td colspan="3" class="px-6 py-2 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                EWT (Withholding)
+                                            </td>
+                                            <td class="px-6 py-2 text-right text-sm font-bold text-rose-600">- {{ formatCurrency(bill.ewt_amount) }}</td>
+                                        </tr>
+                                        <tr class="border-t-2 border-indigo-100">
+                                            <td colspan="3" class="px-6 py-4 text-right text-xs font-black text-gray-500 uppercase tracking-widest">
+                                                Final Net Payable
+                                            </td>
+                                            <td class="px-6 py-4 text-right text-xl font-black text-indigo-700">{{ formatCurrency(bill.net_amount) }}</td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -295,6 +313,33 @@ const deleteBill = async () => {
 
                     <!-- Side Panel: Accounting Impact -->
                     <div class="space-y-6">
+                        <!-- Tax Summary Card (If PO Linked or Taxes exist) -->
+                        <div v-if="parseFloat(bill.vat_amount) > 0 || parseFloat(bill.ewt_amount) > 0" class="bg-slate-900 rounded-xl p-6 shadow-xl border border-slate-800 text-white relative overflow-hidden">
+                            <div class="relative z-10 space-y-3">
+                                <h3 class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 flex items-center">
+                                    <ReceiptPercentIcon class="w-4 h-4 mr-2" />
+                                    Tax Summary
+                                </h3>
+                                <div class="flex justify-between items-center text-[10px]">
+                                    <span class="text-slate-400 uppercase">Gross Subtotal:</span>
+                                    <span class="font-bold">{{ formatCurrency(bill.items.reduce((sum, i) => sum + parseFloat(i.amount), 0)) }}</span>
+                                </div>
+                                <div v-if="parseFloat(bill.vat_amount) > 0" class="flex justify-between items-center text-[10px]">
+                                    <span class="text-slate-400 uppercase">VAT (12%):</span>
+                                    <span class="font-bold text-indigo-300">+ {{ formatCurrency(bill.vat_amount) }}</span>
+                                </div>
+                                <div v-if="parseFloat(bill.ewt_amount) > 0" class="flex justify-between items-center text-[10px]">
+                                    <span class="text-slate-400 uppercase">EWT Deduction:</span>
+                                    <span class="font-bold text-rose-400">- {{ formatCurrency(bill.ewt_amount) }}</span>
+                                </div>
+                                <div class="pt-3 border-t border-white/10">
+                                    <p class="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Total Net Payable</p>
+                                    <h3 class="text-xl font-black">{{ formatCurrency(bill.net_amount) }}</h3>
+                                </div>
+                            </div>
+                            <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 blur-2xl rounded-full -mr-12 -mt-12"></div>
+                        </div>
+
                         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-100">
                             <div class="p-6 border-b border-gray-100 flex items-center justify-between">
                                 <div class="flex items-center">
@@ -354,7 +399,7 @@ const deleteBill = async () => {
                                         </div>
                                         <div class="flex justify-between items-end border-b border-white/10 pb-3">
                                             <span class="text-xs text-white/60 uppercase">Outstanding Balance</span>
-                                            <span class="text-lg font-bold text-orange-400">{{ formatCurrency(bill.total_amount) }}</span>
+                                            <span class="text-lg font-bold text-orange-400">{{ formatCurrency(bill.net_amount) }}</span>
                                         </div>
                                         <button 
                                             v-if="bill.status === 'Approved'"
@@ -367,7 +412,7 @@ const deleteBill = async () => {
                                     <template v-else>
                                         <div class="flex justify-between items-end border-b border-white/10 pb-3">
                                             <span class="text-xs text-white/60 uppercase">Total Credit Value</span>
-                                            <span class="text-lg font-bold">{{ formatCurrency(bill.total_amount) }}</span>
+                                            <span class="text-lg font-bold">{{ formatCurrency(bill.net_amount) }}</span>
                                         </div>
                                         <div class="bg-white/10 p-3 rounded text-xs italic">
                                             This debit memo reduces your overall liability to <strong>{{ bill.vendor?.name }}</strong>.

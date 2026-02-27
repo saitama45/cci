@@ -25,6 +25,7 @@ import { useInputRestriction } from '@/Composables/useInputRestriction';
 const props = defineProps({
     contract: Object,
     payment_methods: Array,
+    banks: Array
 });
 
 const showReceiptsModal = ref(false);
@@ -40,7 +41,15 @@ const form = useForm({
     payment_method: 'Cash',
     reference_no: '',
     notes: '',
+    // PDC Fields
+    bank_id: '',
+    check_no: '',
+    check_date: formatDateForInput(new Date()),
+    starting_check_no: '',
 });
+
+const isPdcMethod = computed(() => ['Check', 'PDC'].includes(form.payment_method));
+const isBulkPdcMethod = computed(() => form.payment_method === 'Bulk PDC');
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-PH', {
@@ -395,11 +404,11 @@ const groupedSchedules = computed(() => {
 
                             <form @submit.prevent="submitPayment" class="p-8 space-y-6">
                                 <div class="space-y-4">
-                                    <div>
+                                    <div v-if="!isBulkPdcMethod">
                                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Collection Date</label>
                                         <div class="relative group">
                                             <CalendarDaysIcon class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                                            <input v-model="form.payment_date" type="date" required class="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-700 text-sm">
+                                            <input v-model="form.payment_date" type="date" :required="!isBulkPdcMethod" class="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-700 text-sm">
                                         </div>
                                     </div>
 
@@ -410,11 +419,42 @@ const groupedSchedules = computed(() => {
                                         </select>
                                     </div>
 
-                                    <div>
-                                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Official Receipt / Reference #</label>
+                                    <!-- PDC Specific Fields -->
+                                    <div v-if="isPdcMethod || isBulkPdcMethod" class="space-y-4 p-4 bg-blue-50/50 rounded-3xl border border-blue-100 animate-in slide-in-from-top-4 duration-300">
+                                        <div>
+                                            <label class="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Bank Issuer</label>
+                                            <select v-model="form.bank_id" required class="block w-full px-4 py-2 bg-white border border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-700 text-sm">
+                                                <option value="">Select Issuer Bank</option>
+                                                <option v-for="bank in banks" :key="bank.id" :value="bank.id">{{ bank.name }} - {{ bank.code }}</option>
+                                            </select>
+                                        </div>
+                                        <div v-if="isPdcMethod" class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Check #</label>
+                                                <input v-model="form.check_no" type="text" placeholder="0000123" class="block w-full px-4 py-2 bg-white border border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-900 text-sm">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Maturity Date</label>
+                                                <input v-model="form.check_date" type="date" class="block w-full px-4 py-2 bg-white border border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-900 text-sm">
+                                            </div>
+                                        </div>
+                                        <div v-if="isBulkPdcMethod" class="space-y-2">
+                                            <div>
+                                                <label class="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Starting Check #</label>
+                                                <input v-model="form.starting_check_no" type="text" placeholder="0000101" required class="block w-full px-4 py-2 bg-white border border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-900 text-sm">
+                                            </div>
+                                            <div class="flex items-start space-x-2 text-[10px] font-bold text-blue-500 bg-blue-100/50 p-2 rounded-lg">
+                                                <InformationCircleIcon class="w-4 h-4 flex-shrink-0" />
+                                                <p>Check numbers will auto-increment. Maturity dates will automatically align with the due date of each selected installment.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="!isBulkPdcMethod">
+                                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{{ isPdcMethod ? 'Reference / Deposit Slip' : 'Official Receipt / Reference #' }}</label>
                                         <div class="relative group">
                                             <DocumentTextIcon class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                                            <input v-model="form.reference_no" type="text" required placeholder="Ex: OR-99827" class="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-900 text-sm placeholder:text-slate-300">
+                                            <input v-model="form.reference_no" type="text" :required="!isBulkPdcMethod" placeholder="Ex: OR-99827" class="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-900 text-sm placeholder:text-slate-300">
                                         </div>
                                     </div>
 

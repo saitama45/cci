@@ -317,9 +317,10 @@ class AccountingReportController extends Controller
 
     private function getProjectPLData($companyId, $startDate, $endDate)
     {
-        $projects = \App\Models\Project::where('is_active', true)->get();
+        $projects = \App\Models\Project::where('company_id', $companyId)->where('is_active', true)->get();
         
         $reportData = $projects->map(function ($project) use ($companyId, $startDate, $endDate) {
+            // 1. Actuals from General Ledger
             $lines = JournalEntryLine::where('project_id', $project->id)
                 ->whereHas('journalEntry', function($q) use ($companyId, $startDate, $endDate) {
                     $q->where('company_id', $companyId)
@@ -329,32 +330,56 @@ class AccountingReportController extends Controller
                 ->with('chartOfAccount')
                 ->get();
 
-            $revenue = 0;
-            $expenses = 0;
+            $actualRevenue = 0;
+            $actualExpenses = 0;
 
             foreach ($lines as $line) {
                 if ($line->chartOfAccount->type === 'revenue') {
-                    $revenue += ($line->credit - $line->debit);
+                    $actualRevenue += ($line->credit - $line->debit);
                 } elseif (in_array($line->chartOfAccount->type, ['expense', 'asset'])) {
-                    // For assets, we consider the Debit (increase in cost) as the expense/outflow for P&L purposes
-                    $expenses += ($line->debit - $line->credit);
+                    $actualExpenses += ($line->debit - $line->credit);
                 }
             }
+
+            // 2. Committed Costs (Approved POs not yet fully billed)
+            // We only look at POs created within the period or still open
+            $committed = \App\Models\PurchaseOrder::where('project_id', $project->id)
+                ->where('company_id', $companyId)
+                ->whereIn('status', ['Approved', 'Partially Billed'])
+                ->get()
+                ->sum(function($po) {
+                    // For each PO, the commitment is the remaining balance
+                    $totalOrdered = $po->total_amount;
+                    // We calculate billed amount from linked bills to get precise remaining liability
+                    $billedAmount = $po->bills()->sum('total_amount');
+                    return max(0, $totalOrdered - $billedAmount);
+                });
+
+            // 3. Budgets
+            $totalBudget = \App\Models\ProjectBudget::where('project_id', $project->id)
+                ->where('company_id', $companyId)
+                ->sum('allocated_amount');
 
             return (object)[
                 'id' => $project->id,
                 'name' => $project->name,
-                'revenue' => $revenue,
-                'expenses' => $expenses,
-                'net_profit' => $revenue - $expenses,
+                'budget' => (float)$totalBudget,
+                'revenue' => (float)$actualRevenue,
+                'expenses' => (float)$actualExpenses,
+                'committed' => (float)$committed,
+                'total_cost_projected' => (float)$actualExpenses + (float)$committed,
+                'net_profit' => (float)$actualRevenue - (float)$actualExpenses,
+                'variance' => $totalBudget > 0 ? $totalBudget - ($actualExpenses + $committed) : 0,
             ];
-        })->filter(fn($p) => $p->revenue != 0 || $p->expenses != 0)->values();
+        })->filter(fn($p) => $p->revenue != 0 || $p->expenses != 0 || $p->budget != 0)->values();
 
         return [
             'projects' => $reportData,
             'totals' => [
+                'budget' => $reportData->sum('budget'),
                 'revenue' => $reportData->sum('revenue'),
                 'expenses' => $reportData->sum('expenses'),
+                'committed' => $reportData->sum('committed'),
                 'net_profit' => $reportData->sum('net_profit'),
             ]
         ];

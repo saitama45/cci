@@ -8,13 +8,21 @@ import {
     UserGroupIcon,
     ShieldCheckIcon,
     BuildingOfficeIcon,
+    BuildingLibraryIcon,
     ClipboardDocumentListIcon,
     ClipboardDocumentCheckIcon,
     CurrencyDollarIcon,
     MapIcon,
     UserIcon,
     ClockIcon,
-    ChartPieIcon
+    ChartPieIcon,
+    ScaleIcon,
+    ChevronDownIcon,
+    ChevronRightIcon,
+    BanknotesIcon,
+    DocumentChartBarIcon,
+    TableCellsIcon,
+    Cog6ToothIcon
 } from '@heroicons/vue/24/outline';
 import { usePermission } from '@/Composables/usePermission';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
@@ -31,6 +39,40 @@ const emit = defineEmits(['toggle']);
 const page = usePage();
 const user = computed(() => page.props.auth?.user || {});
 const { hasPermission, hasAnyPermission } = usePermission();
+
+// Collapsible State Management
+const openMenus = ref({
+    sales: false,
+    inventory: false,
+    procurement: false,
+    treasury: false,
+    accounting: false,
+    reports: false,
+    admin: false
+});
+
+const toggleMenu = (menu) => {
+    if (props.isCollapsed) {
+        emit('toggle');
+        // Delay opening the menu slightly to allow sidebar to expand first
+        setTimeout(() => {
+            openMenus.value[menu] = !openMenus.value[menu];
+        }, 100);
+    } else {
+        openMenus.value[menu] = !openMenus.value[menu];
+    }
+};
+
+// Auto-expand menu based on current route
+onMounted(() => {
+    if (route().current('customers.*') || route().current('brokers.*') || route().current('reservations.*') || route().current('contracted-sales.*')) openMenus.value.sales = true;
+    if (route().current('projects.*') || route().current('units.*') || route().current('price-lists.*')) openMenus.value.inventory = true;
+    if (route().current('vendors.*') || route().current('accounting.purchase-orders.*') || route().current('accounting.bills.*') || route().current('accounting.disbursements.*')) openMenus.value.procurement = true;
+    if (route().current('payments.*') || route().current('accounting.reconciliations.*') || route().current('accounting.banks.*')) openMenus.value.treasury = true;
+    if (route().current('chart-of-accounts.*') || route().current('journal-entries.*')) openMenus.value.accounting = true;
+    if (route().current('accounting.trial-balance') || route().current('accounting.general-ledger') || route().current('accounting.project-pl') || route().current('accounting.ar-aging') || route().current('accounting.ap-aging') || route().current('accounting.overall-receivables')) openMenus.value.reports = true;
+    if (route().current('users.*') || route().current('companies.*') || route().current('roles.*') || route().current('document-requirements.*')) openMenus.value.admin = true;
+});
 
 // Scroll Persistence Logic
 const navRef = ref(null);
@@ -121,12 +163,12 @@ const handleMouseLeave = () => {
                 @scroll="handleScroll"
                 class="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar z-10"
             >
-                <!-- Dashboard -->
+                <!-- 1. DASHBOARD -->
                 <Link
                     v-if="hasPermission('dashboard.view')"
                     :href="route('dashboard')"
                     :class="[
-                        'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-6',
+                        'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-4',
                         route().current('dashboard')
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
                             : 'text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -141,546 +183,175 @@ const handleMouseLeave = () => {
                             isCollapsed ? 'mx-auto' : 'mr-3'
                         ]"
                     />
-                    <span v-if="!isCollapsed" class="font-medium text-sm">Dashboard</span>
+                    <span v-if="!isCollapsed" class="font-bold text-sm">Dashboard</span>
                 </Link>
 
-                 <!-- Project & Inventory -->
-                 <template v-if="hasAnyPermission(['projects.view', 'units.view', 'price_lists.view'])">
-                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Project & Inventory</p>
-                    </div>
-                    <div v-else class="my-4 border-t border-slate-800"></div>
-
-                    <Link
-                        v-if="hasPermission('projects.view')"
-                        :href="route('projects.index')"
+                <!-- 2. SALES & CRM -->
+                <div v-if="hasAnyPermission(['customers.view', 'reservations.view', 'brokers.view'])" class="space-y-1">
+                    <button 
+                        @click="toggleMenu('sales')"
                         :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('projects.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group',
+                            openMenus.sales ? 'bg-slate-800/50 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                        @mouseenter="handleMouseEnter($event, 'Projects')"
-                        @mouseleave="handleMouseLeave"
                     >
-                        <BuildingOfficeIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('projects.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Projects</span>
-                    </Link>
-
-                    <!-- Units -->
-                    <Link
-                        v-if="hasPermission('units.view')"
-                        :href="route('units.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('units.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Units / Lots')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <MapIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('units.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Units / Lots</span>
-                    </Link>
-
-                    <!-- Price Lists -->
-                    <Link
-                        v-if="hasPermission('price_lists.view')"
-                        :href="route('price-lists.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('price-lists.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Price Lists')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <CurrencyDollarIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('price-lists.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Price Lists</span>
-                    </Link>
-                 </template>
-
-                 <!-- Sales -->
-                 <template v-if="hasAnyPermission(['customers.view', 'reservations.view'])">
-                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sales</p>
-                    </div>
-                    <div v-else class="my-4 border-t border-slate-800"></div>
-
-                    <!-- Customers -->
-                    <Link
-                        v-if="hasPermission('customers.view')"
-                        :href="route('customers.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('customers.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Customers')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <UserIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('customers.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Customers</span>
-                    </Link>
-
-                    <!-- Brokers -->
-                    <Link
-                        v-if="hasPermission('brokers.view')"
-                        :href="route('brokers.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('brokers.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Brokers & Agents')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <UserGroupIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('brokers.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Brokers & Agents</span>
-                    </Link>
+                        <div class="flex items-center">
+                            <UserGroupIcon :class="['w-5 h-5 flex-shrink-0 mr-3', isCollapsed ? 'mx-auto' : '', openMenus.sales ? 'text-blue-400' : 'text-slate-500 group-hover:text-white']" />
+                            <span v-if="!isCollapsed" class="text-sm font-bold">Sales & CRM</span>
+                        </div>
+                        <ChevronDownIcon v-if="!isCollapsed" :class="['w-3.5 h-3.5 transition-transform duration-200', openMenus.sales ? 'rotate-180' : '']" />
+                    </button>
                     
-                    <!-- Reservations -->
-                    <Link
-                        v-if="hasPermission('reservations.view')"
-                        :href="route('reservations.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('reservations.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Reservations')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ClipboardDocumentListIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('reservations.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Reservations</span>
-                    </Link>
-
-                    <!-- Contracted Sales -->
-                    <Link
-                        v-if="hasPermission('reservations.view')"
-                        :href="route('contracted-sales.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('contracted-sales.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Contracted Sales')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ClipboardDocumentCheckIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('contracted-sales.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Contracted Sales</span>
-                    </Link>
-                 </template>
-
-                 <!-- Finance -->
-                 <template v-if="hasAnyPermission(['accounting.view', 'journal_entries.view', 'payments.view', 'chart_of_accounts.view', 'vendors.view'])">
-                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Finance & Accounting</p>
+                    <div v-if="openMenus.sales && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
+                        <Link v-if="hasPermission('customers.view')" :href="route('customers.index')" :class="[route().current('customers.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Customers</Link>
+                        <Link v-if="hasPermission('brokers.view')" :href="route('brokers.index')" :class="[route().current('brokers.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Brokers & Agents</Link>
+                        <Link v-if="hasPermission('reservations.view')" :href="route('reservations.index')" :class="[route().current('reservations.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Reservations</Link>
+                        <Link v-if="hasPermission('reservations.view')" :href="route('contracted-sales.index')" :class="[route().current('contracted-sales.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Contracted Sales</Link>
                     </div>
-                    <div v-else class="my-4 border-t border-slate-800"></div>
+                </div>
 
-                    <!-- Vendor Management -->
-                    <Link
-                        v-if="hasPermission('vendors.view')"
-                        :href="route('vendors.index')"
+                <!-- 3. PROJECT & INVENTORY -->
+                <div v-if="hasAnyPermission(['projects.view', 'units.view', 'price_lists.view'])" class="space-y-1">
+                    <button 
+                        @click="toggleMenu('inventory')"
                         :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('vendors.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group',
+                            openMenus.inventory ? 'bg-slate-800/50 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                        @mouseenter="handleMouseEnter($event, 'Vendor Management')"
-                        @mouseleave="handleMouseLeave"
                     >
-                        <UserGroupIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('vendors.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Vendor Management</span>
-                    </Link>
-
-                    <!-- Bills / Accounts Payable -->
-                    <Link
-                        v-if="hasPermission('bills.view')"
-                        :href="route('accounting.bills.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.bills.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Bills / Accounts Payable')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ClipboardDocumentListIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.bills.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Bills / AP</span>
-                    </Link>
-
-                    <!-- Journal Entries -->
-                    <Link
-                        v-if="hasPermission('journal_entries.view')"
-                        :href="route('journal-entries.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('journal-entries.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Journal Entries')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ShieldCheckIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('journal-entries.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Journal Entries</span>
-                    </Link>
-
-                    <!-- Payments -->
-                    <Link
-                        v-if="hasPermission('payments.view')"
-                        :href="route('payments.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('payments.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Collections (Payments)')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <CurrencyDollarIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('payments.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Collections</span>
-                    </Link>
-
-                    <!-- Chart of Accounts -->
-                    <Link
-                        v-if="hasPermission('chart_of_accounts.view')"
-                        :href="route('chart-of-accounts.index')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('chart-of-accounts.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Chart of Accounts')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <MapIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('chart-of-accounts.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Chart of Accounts</span>
-                    </Link>
-
-                    <!-- Trial Balance -->
-                    <Link
-                        v-if="hasPermission('accounting.view')"
-                        :href="route('accounting.trial-balance')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.trial-balance')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Trial Balance')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ShieldCheckIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.trial-balance') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Trial Balance</span>
-                    </Link>
-
-                    <!-- General Ledger -->
-                    <Link
-                        v-if="hasPermission('accounting.view')"
-                        :href="route('accounting.general-ledger')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.general-ledger')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'General Ledger')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ClipboardDocumentCheckIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.general-ledger') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">General Ledger</span>
-                    </Link>
-
-                    <!-- Project P&L -->
-                    <Link
-                        v-if="hasPermission('accounting.view')"
-                        :href="route('accounting.project-pl')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.project-pl')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Project P&L')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ChartPieIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.project-pl') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Project P&L</span>
-                    </Link>
-
-                    <!-- AR Aging Report -->
-                    <Link
-                        v-if="hasPermission('accounting.view')"
-                        :href="route('accounting.ar-aging')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.ar-aging')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'AR Aging Report')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ClockIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.ar-aging') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">AR Aging</span>
-                    </Link>
-
-                    <!-- AP Aging Report -->
-                    <Link
-                        v-if="hasPermission('accounting.view')"
-                        :href="route('accounting.ap-aging')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.ap-aging')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'AP Aging Report')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ClockIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.ap-aging') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">AP Aging</span>
-                    </Link>
-
-                    <!-- Overall Receivables -->
-                    <Link
-                        v-if="hasPermission('accounting.view')"
-                        :href="route('accounting.overall-receivables')"
-                        :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('accounting.overall-receivables')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        ]"
-                        @mouseenter="handleMouseEnter($event, 'Overall Receivables')"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <ChartPieIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                route().current('accounting.overall-receivables') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Overall Receivables</span>
-                    </Link>
-                 </template>
-
-                <!-- Module: Admin & Security -->
-                <template v-if="hasAnyPermission(['users.view', 'companies.view', 'roles.view', 'document_requirements.view'])">
-                    <div v-if="!isCollapsed" class="px-3 mb-2 mt-6">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Administration</p>
+                        <div class="flex items-center">
+                            <BuildingOfficeIcon :class="['w-5 h-5 flex-shrink-0 mr-3', isCollapsed ? 'mx-auto' : '', openMenus.inventory ? 'text-blue-400' : 'text-slate-500 group-hover:text-white']" />
+                            <span v-if="!isCollapsed" class="text-sm font-bold">Project & Inventory</span>
+                        </div>
+                        <ChevronDownIcon v-if="!isCollapsed" :class="['w-3.5 h-3.5 transition-transform duration-200', openMenus.inventory ? 'rotate-180' : '']" />
+                    </button>
+                    
+                    <div v-if="openMenus.inventory && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
+                        <Link v-if="hasPermission('projects.view')" :href="route('projects.index')" :class="[route().current('projects.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Projects</Link>
+                        <Link v-if="hasPermission('units.view')" :href="route('units.index')" :class="[route().current('units.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Units / Lots</Link>
+                        <Link v-if="hasPermission('price_lists.view')" :href="route('price-lists.index')" :class="[route().current('price-lists.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Price Lists</Link>
                     </div>
-                    <div v-else class="my-4 border-t border-slate-800"></div>
+                </div>
 
-
-                    <!-- Users -->
-                    <Link
-                        v-if="hasPermission('users.view')"
-                        :href="route('users.index')"
+                <!-- 4. PROCUREMENT (AP) -->
+                <div v-if="hasAnyPermission(['vendors.view', 'purchase_orders.view', 'bills.view', 'accounting.view'])" class="space-y-1">
+                    <button 
+                        @click="toggleMenu('procurement')"
                         :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('users.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group',
+                            openMenus.procurement ? 'bg-slate-800/50 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                        @mouseenter="handleMouseEnter($event, 'Users')"
-                        @mouseleave="handleMouseLeave"
                     >
-                        <UserGroupIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                 route().current('users.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Users</span>
-                    </Link>
+                        <div class="flex items-center">
+                            <BanknotesIcon :class="['w-5 h-5 flex-shrink-0 mr-3', isCollapsed ? 'mx-auto' : '', openMenus.procurement ? 'text-blue-400' : 'text-slate-500 group-hover:text-white']" />
+                            <span v-if="!isCollapsed" class="text-sm font-bold">Procurement (AP)</span>
+                        </div>
+                        <ChevronDownIcon v-if="!isCollapsed" :class="['w-3.5 h-3.5 transition-transform duration-200', openMenus.procurement ? 'rotate-180' : '']" />
+                    </button>
+                    
+                    <div v-if="openMenus.procurement && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
+                        <Link v-if="hasPermission('vendors.view')" :href="route('vendors.index')" :class="[route().current('vendors.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Vendors</Link>
+                        <Link v-if="hasPermission('purchase_orders.view')" :href="route('accounting.purchase-orders.index')" :class="[route().current('accounting.purchase-orders.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Purchase Orders</Link>
+                        <Link v-if="hasPermission('bills.view')" :href="route('accounting.bills.index')" :class="[route().current('accounting.bills.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bills / AP</Link>
+                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.disbursements.index')" :class="[route().current('accounting.disbursements.index') || route().current('accounting.disbursements.show') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Disbursements / PV</Link>
+                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.disbursements.vault')" :class="[route().current('accounting.disbursements.vault') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">PDC Vault</Link>
+                    </div>
+                </div>
 
-                    <!-- Companies -->
-                    <Link
-                        v-if="hasPermission('companies.view')"
-                        :href="route('companies.index')"
+                <!-- 5. TREASURY & CASH -->
+                <div v-if="hasAnyPermission(['payments.view', 'accounting.view'])" class="space-y-1">
+                    <button 
+                        @click="toggleMenu('treasury')"
                         :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                            route().current('companies.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group',
+                            openMenus.treasury ? 'bg-slate-800/50 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                        @mouseenter="handleMouseEnter($event, 'Companies')"
-                        @mouseleave="handleMouseLeave"
                     >
-                        <BuildingOfficeIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                 route().current('companies.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Companies</span>
-                    </Link>
+                        <div class="flex items-center">
+                            <BuildingLibraryIcon :class="['w-5 h-5 flex-shrink-0 mr-3', isCollapsed ? 'mx-auto' : '', openMenus.treasury ? 'text-blue-400' : 'text-slate-500 group-hover:text-white']" />
+                            <span v-if="!isCollapsed" class="text-sm font-bold">Treasury & Cash</span>
+                        </div>
+                        <ChevronDownIcon v-if="!isCollapsed" :class="['w-3.5 h-3.5 transition-transform duration-200', openMenus.treasury ? 'rotate-180' : '']" />
+                    </button>
+                    
+                    <div v-if="openMenus.treasury && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
+                        <Link v-if="hasPermission('payments.view')" :href="route('payments.index')" :class="[route().current('payments.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Collections</Link>
+                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.reconciliations.index')" :class="[route().current('accounting.reconciliations.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bank Recon</Link>
+                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.banks.index')" :class="[route().current('accounting.banks.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bank Management</Link>
+                    </div>
+                </div>
 
-                    <!-- Roles -->
-                    <Link
-                        v-if="hasPermission('roles.view')"
-                        :href="route('roles.index')"
+                <!-- 6. ACCOUNTING (GL) -->
+                <div v-if="hasAnyPermission(['journal_entries.view', 'chart_of_accounts.view'])" class="space-y-1">
+                    <button 
+                        @click="toggleMenu('accounting')"
                         :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                             route().current('roles.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group',
+                            openMenus.accounting ? 'bg-slate-800/50 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                        @mouseenter="handleMouseEnter($event, 'Roles & Permissions')"
-                        @mouseleave="handleMouseLeave"
                     >
-                        <ShieldCheckIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                 route().current('roles.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Roles & Permissions</span>
-                    </Link>
+                        <div class="flex items-center">
+                            <ShieldCheckIcon :class="['w-5 h-5 flex-shrink-0 mr-3', isCollapsed ? 'mx-auto' : '', openMenus.accounting ? 'text-blue-400' : 'text-slate-500 group-hover:text-white']" />
+                            <span v-if="!isCollapsed" class="text-sm font-bold">Accounting (GL)</span>
+                        </div>
+                        <ChevronDownIcon v-if="!isCollapsed" :class="['w-3.5 h-3.5 transition-transform duration-200', openMenus.accounting ? 'rotate-180' : '']" />
+                    </button>
+                    
+                    <div v-if="openMenus.accounting && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
+                        <Link v-if="hasPermission('chart_of_accounts.view')" :href="route('chart-of-accounts.index')" :class="[route().current('chart-of-accounts.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Chart of Accounts</Link>
+                        <Link v-if="hasPermission('journal_entries.view')" :href="route('journal-entries.index')" :class="[route().current('journal-entries.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Journal Entries</Link>
+                    </div>
+                </div>
 
-                    <!-- Document Checklist Config -->
-                    <Link
-                        v-if="hasPermission('document_requirements.view')"
-                        :href="route('document-requirements.index')"
+                <!-- 7. FINANCIAL REPORTS -->
+                <div v-if="hasPermission('accounting.view')" class="space-y-1">
+                    <button 
+                        @click="toggleMenu('reports')"
                         :class="[
-                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-                             route().current('document-requirements.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group',
+                            openMenus.reports ? 'bg-slate-800/50 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         ]"
-                        @mouseenter="handleMouseEnter($event, 'Document Checklist')"
-                        @mouseleave="handleMouseLeave"
                     >
-                        <ClipboardDocumentCheckIcon
-                            :class="[
-                                'w-5 h-5 flex-shrink-0 transition-colors',
-                                 route().current('document-requirements.*') ? 'text-blue-400' : 'text-slate-500 group-hover:text-white',
-                                isCollapsed ? 'mx-auto' : 'mr-3'
-                            ]"
-                        />
-                        <span v-if="!isCollapsed" class="font-medium text-sm">Document Checklist</span>
-                    </Link>
-                </template>
+                        <div class="flex items-center">
+                            <ChartPieIcon :class="['w-5 h-5 flex-shrink-0 mr-3', isCollapsed ? 'mx-auto' : '', openMenus.reports ? 'text-blue-400' : 'text-slate-500 group-hover:text-white']" />
+                            <span v-if="!isCollapsed" class="text-sm font-bold">Financial Reports</span>
+                        </div>
+                        <ChevronDownIcon v-if="!isCollapsed" :class="['w-3.5 h-3.5 transition-transform duration-200', openMenus.reports ? 'rotate-180' : '']" />
+                    </button>
+                    
+                    <div v-if="openMenus.reports && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
+                        <Link :href="route('accounting.trial-balance')" :class="[route().current('accounting.trial-balance') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Trial Balance</Link>
+                        <Link :href="route('accounting.general-ledger')" :class="[route().current('accounting.general-ledger') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">General Ledger</Link>
+                        <Link :href="route('accounting.project-pl')" :class="[route().current('accounting.project-pl') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Project P&L</Link>
+                        <Link :href="route('accounting.ar-aging')" :class="[route().current('accounting.ar-aging') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">AR Aging</Link>
+                        <Link :href="route('accounting.ap-aging')" :class="[route().current('accounting.ap-aging') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">AP Aging</Link>
+                        <Link :href="route('accounting.overall-receivables')" :class="[route().current('accounting.overall-receivables') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Overall Receivables</Link>
+                    </div>
+                </div>
+
+                <!-- 8. ADMINISTRATION -->
+                <div v-if="hasAnyPermission(['users.view', 'companies.view', 'roles.view'])" class="space-y-1">
+                    <button 
+                        @click="toggleMenu('admin')"
+                        :class="[
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group',
+                            openMenus.admin ? 'bg-slate-800/50 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        ]"
+                    >
+                        <div class="flex items-center">
+                            <Cog6ToothIcon :class="['w-5 h-5 flex-shrink-0 mr-3', isCollapsed ? 'mx-auto' : '', openMenus.admin ? 'text-blue-400' : 'text-slate-500 group-hover:text-white']" />
+                            <span v-if="!isCollapsed" class="text-sm font-bold">Administration</span>
+                        </div>
+                        <ChevronDownIcon v-if="!isCollapsed" :class="['w-3.5 h-3.5 transition-transform duration-200', openMenus.admin ? 'rotate-180' : '']" />
+                    </button>
+                    
+                    <div v-if="openMenus.admin && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
+                        <Link v-if="hasPermission('users.view')" :href="route('users.index')" :class="[route().current('users.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Users</Link>
+                        <Link v-if="hasPermission('companies.view')" :href="route('companies.index')" :class="[route().current('companies.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Companies</Link>
+                        <Link v-if="hasPermission('roles.view')" :href="route('roles.index')" :class="[route().current('roles.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Roles & Permissions</Link>
+                        <Link v-if="hasPermission('document_requirements.view')" :href="route('document-requirements.index')" :class="[route().current('document-requirements.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Document Checklist</Link>
+                    </div>
+                </div>
 
             </nav>
 

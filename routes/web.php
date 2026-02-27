@@ -28,6 +28,8 @@ Route::middleware('auth')->group(function () {
             Route::resource('brokers', \App\Http\Controllers\BrokerController::class);
             Route::resource('reservations', ReservationController::class);
             Route::resource('contracted-sales', \App\Http\Controllers\ContractedSalesController::class)->only(['index', 'show']);
+            Route::get('contracted-sales/{contracted_sale}/ledger', [\App\Http\Controllers\ContractedSalesController::class, 'ledger'])->name('contracted-sales.ledger');
+            Route::get('contracted-sales/{contracted_sale}/soa', [\App\Http\Controllers\ContractedSalesController::class, 'exportSOA'])->name('contracted-sales.soa');
             Route::post('contracted-sales/{id}/reprice', [\App\Http\Controllers\ContractedSalesController::class, 'reprice'])->name('contracted-sales.reprice');
             Route::post('reservations/{reservation}/contract', [ReservationController::class, 'contract'])->name('reservations.contract');
             Route::post('reservations/{reservation}/cancel-accounting', [ReservationController::class, 'cancel'])->name('reservations.cancel-accounting');
@@ -53,6 +55,50 @@ Route::middleware('auth')->group(function () {
                 'update' => 'accounting.bills.update',
                 'destroy' => 'accounting.bills.destroy',
             ]);
+
+            Route::resource('purchase-orders', \App\Http\Controllers\PurchaseOrderController::class)->names([
+                'index' => 'accounting.purchase-orders.index',
+                'create' => 'accounting.purchase-orders.create',
+                'store' => 'accounting.purchase-orders.store',
+                'show' => 'accounting.purchase-orders.show',
+            ])->except(['edit', 'update', 'destroy']);
+            Route::get('purchase-orders/{purchase_order}/print', [\App\Http\Controllers\PurchaseOrderController::class, 'print'])->name('accounting.purchase-orders.print');
+            Route::post('purchase-orders/{purchase_order}/approve', [\App\Http\Controllers\PurchaseOrderController::class, 'approve'])->name('accounting.purchase-orders.approve');
+            Route::post('purchase-orders/{purchase_order}/convert-to-bill', [\App\Http\Controllers\PurchaseOrderController::class, 'convertToBill'])->name('accounting.purchase-orders.convert-to-bill');
+
+            Route::resource('disbursements', \App\Http\Controllers\DisbursementController::class)->names([
+                'index' => 'accounting.disbursements.index',
+                'create' => 'accounting.disbursements.create',
+                'store' => 'accounting.disbursements.store',
+                'show' => 'accounting.disbursements.show',
+            ]);
+            Route::post('disbursements/{disbursement}/approve', [\App\Http\Controllers\DisbursementController::class, 'approve'])->name('accounting.disbursements.approve');
+            Route::get('disbursements/{disbursement}/print', [\App\Http\Controllers\DisbursementController::class, 'print'])->name('accounting.disbursements.print');
+            Route::get('disbursements/{disbursement}/print-check', [\App\Http\Controllers\DisbursementController::class, 'printCheck'])->name('accounting.disbursements.print-check');
+            Route::get('disbursements-vault', [\App\Http\Controllers\DisbursementController::class, 'vault'])->name('accounting.disbursements.vault');
+            Route::post('pdc-vault/{pdc}/clear', [\App\Http\Controllers\DisbursementController::class, 'markAsCleared'])->name('accounting.disbursements.pdc-clear');
+            Route::post('pdc-vault/{pdc}/bounce', [\App\Http\Controllers\DisbursementController::class, 'markAsBounced'])->name('accounting.disbursements.pdc-bounce');
+            Route::get('api/vendors/{vendor}/bills', [\App\Http\Controllers\DisbursementController::class, 'getVendorBills'])->name('api.vendors.bills');
+
+            // Bank Reconciliation
+            Route::resource('reconciliations', \App\Http\Controllers\BankReconciliationController::class)->names([
+                'index' => 'accounting.reconciliations.index',
+                'create' => 'accounting.reconciliations.create',
+                'store' => 'accounting.reconciliations.store',
+                'show' => 'accounting.reconciliations.show',
+                'update' => 'accounting.reconciliations.update',
+            ])->except(['edit', 'destroy']);
+            Route::post('reconciliations/{reconciliation}/lines/{line}/toggle', [\App\Http\Controllers\BankReconciliationController::class, 'toggleLine'])->name('accounting.reconciliations.toggle-line');
+            Route::post('reconciliations/{reconciliation}/bulk-toggle', [\App\Http\Controllers\BankReconciliationController::class, 'bulkToggle'])->name('accounting.reconciliations.bulk-toggle');
+            Route::post('reconciliations/{reconciliation}/complete', [\App\Http\Controllers\BankReconciliationController::class, 'complete'])->name('accounting.reconciliations.complete');
+
+            // Bank Management
+            Route::resource('banks', \App\Http\Controllers\BankController::class)->names([
+                'index' => 'accounting.banks.index',
+                'store' => 'accounting.banks.store',
+                'update' => 'accounting.banks.update',
+                'destroy' => 'accounting.banks.destroy',
+            ])->except(['create', 'show', 'edit']);
 
             // Accounting Reports
             Route::get('accounting/trial-balance', [\App\Http\Controllers\AccountingReportController::class, 'trialBalance'])->name('accounting.trial-balance');

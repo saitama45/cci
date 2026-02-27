@@ -76,9 +76,21 @@ class RoleService
             'label' => 'Vendors / Suppliers',
             'permissions' => ['view', 'create', 'edit', 'delete']
         ],
+        'purchase_orders' => [
+            'label' => 'Purchase Orders',
+            'permissions' => ['view', 'show', 'create', 'approve', 'print', 'convert']
+        ],
         'bills' => [
             'label' => 'Bills / Accounts Payable',
             'permissions' => ['view', 'show', 'create', 'edit', 'delete', 'approve', 'cancel', 'debit_memo']
+        ],
+        'disbursements' => [
+            'label' => 'Disbursements / Payment Vouchers',
+            'permissions' => ['view', 'show', 'create', 'approve', 'print', 'vault']
+        ],
+        'reconciliations' => [
+            'label' => 'Bank Reconciliations',
+            'permissions' => ['view', 'show', 'create', 'complete']
         ],
         'collections' => [
             'label' => 'Collections',

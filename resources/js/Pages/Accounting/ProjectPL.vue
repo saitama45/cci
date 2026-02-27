@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { 
     CalendarDaysIcon,
@@ -9,13 +9,21 @@ import {
     PresentationChartLineIcon,
     BanknotesIcon,
     ArrowTrendingUpIcon,
-    ArrowTrendingDownIcon
+    ArrowTrendingDownIcon,
+    ChartBarIcon,
+    ShoppingCartIcon
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
     projects: Array,
     filters: Object,
     totals: Object
+});
+
+const budgetUtilization = computed(() => {
+    if (!props.totals.budget || props.totals.budget === 0) return 0;
+    const totalExposure = props.totals.expenses + props.totals.committed;
+    return Math.min(100, (totalExposure / props.totals.budget) * 100);
 });
 
 const startDate = ref(props.filters.start_date);
@@ -90,33 +98,56 @@ const formatCurrency = (value) => {
                 </div>
 
                 <!-- Summary Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                         <div class="flex items-center justify-between mb-4">
                             <div class="p-2 bg-emerald-50 rounded-xl">
                                 <ArrowTrendingUpIcon class="w-6 h-6 text-emerald-600" />
                             </div>
-                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Revenue</span>
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Revenue</span>
                         </div>
                         <p class="text-2xl font-black text-slate-900">{{ formatCurrency(totals.revenue) }}</p>
                     </div>
+
                     <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                         <div class="flex items-center justify-between mb-4">
                             <div class="p-2 bg-rose-50 rounded-xl">
                                 <ArrowTrendingDownIcon class="w-6 h-6 text-rose-600" />
                             </div>
-                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Expenses</span>
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Actual Spent</span>
                         </div>
                         <p class="text-2xl font-black text-slate-900">{{ formatCurrency(totals.expenses) }}</p>
                     </div>
-                    <div class="bg-slate-900 p-6 rounded-3xl shadow-xl shadow-slate-900/20">
+
+                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                         <div class="flex items-center justify-between mb-4">
-                            <div class="p-2 bg-indigo-500/20 rounded-xl">
-                                <PresentationChartLineIcon class="w-6 h-6 text-indigo-400" />
+                            <div class="p-2 bg-amber-50 rounded-xl">
+                                <ShoppingCartIcon class="w-6 h-6 text-amber-600" />
                             </div>
-                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Profit</span>
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Committed (POs)</span>
                         </div>
-                        <p class="text-2xl font-black text-white">{{ formatCurrency(totals.net_profit) }}</p>
+                        <p class="text-2xl font-black text-slate-900">{{ formatCurrency(totals.committed) }}</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-6 rounded-3xl shadow-xl shadow-slate-900/20 text-white relative overflow-hidden">
+                        <div class="relative z-10">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-2 bg-indigo-500/20 rounded-xl">
+                                    <ChartBarIcon class="w-6 h-6 text-indigo-400" />
+                                </div>
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Budget Health</span>
+                            </div>
+                            <p class="text-2xl font-black">{{ formatCurrency(totals.budget) }}</p>
+                            <div class="mt-4">
+                                <div class="flex justify-between text-[9px] font-black uppercase mb-1">
+                                    <span>Utilization</span>
+                                    <span>{{ budgetUtilization.toFixed(1) }}%</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div :style="{ width: `${budgetUtilization}%` }" :class="['h-full transition-all duration-1000', budgetUtilization > 90 ? 'bg-rose-500' : 'bg-indigo-500']"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -127,9 +158,11 @@ const formatCurrency = (value) => {
                             <thead>
                                 <tr class="bg-slate-50/50">
                                     <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Project Name</th>
+                                    <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Budget</th>
                                     <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Revenue</th>
-                                    <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Expenses</th>
-                                    <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Net Profit</th>
+                                    <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Spent (Actual)</th>
+                                    <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Committed (POs)</th>
+                                    <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Variance</th>
                                     <th class="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Margin (%)</th>
                                 </tr>
                             </thead>
@@ -143,9 +176,15 @@ const formatCurrency = (value) => {
                                             <span class="text-xs font-black text-slate-900 tracking-tight">{{ project.name }}</span>
                                         </div>
                                     </td>
+                                    <td class="px-6 py-4 text-xs text-right font-bold text-slate-500">{{ formatCurrency(project.budget) }}</td>
                                     <td class="px-6 py-4 text-xs text-right font-black text-emerald-600">{{ formatCurrency(project.revenue) }}</td>
                                     <td class="px-6 py-4 text-xs text-right font-black text-rose-600">{{ formatCurrency(project.expenses) }}</td>
-                                    <td class="px-6 py-4 text-xs text-right font-black text-slate-900 bg-slate-50/30">{{ formatCurrency(project.net_profit) }}</td>
+                                    <td class="px-6 py-4 text-xs text-right font-bold text-amber-600 italic">{{ formatCurrency(project.committed) }}</td>
+                                    <td class="px-6 py-4 text-xs text-right font-black bg-slate-50/30">
+                                        <span :class="project.variance < 0 ? 'text-rose-600' : 'text-indigo-600'">
+                                            {{ formatCurrency(project.variance) }}
+                                        </span>
+                                    </td>
                                     <td class="px-6 py-4 text-center">
                                         <span class="text-[10px] font-bold text-slate-500">
                                             {{ project.revenue > 0 ? ((project.net_profit / project.revenue) * 100).toFixed(2) + '%' : '0.00%' }}
@@ -153,12 +192,14 @@ const formatCurrency = (value) => {
                                     </td>
                                 </tr>
                             </tbody>
-                            <tfoot class="bg-slate-900 text-white font-black text-xs uppercase tracking-widest">
+                            <tfoot class="bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest">
                                 <tr>
                                     <td class="px-6 py-6">Grand Totals</td>
-                                    <td class="px-6 py-6 text-right border-l border-white/10">{{ formatCurrency(totals.revenue) }}</td>
-                                    <td class="px-6 py-6 text-right border-l border-white/10">{{ formatCurrency(totals.expenses) }}</td>
-                                    <td class="px-6 py-6 text-right border-l border-white/10 bg-indigo-600">{{ formatCurrency(totals.net_profit) }}</td>
+                                    <td class="px-6 py-6 text-right border-l border-white/10 text-slate-400">{{ formatCurrency(totals.budget) }}</td>
+                                    <td class="px-6 py-6 text-right border-l border-white/10 text-emerald-400">{{ formatCurrency(totals.revenue) }}</td>
+                                    <td class="px-6 py-6 text-right border-l border-white/10 text-rose-400">{{ formatCurrency(totals.expenses) }}</td>
+                                    <td class="px-6 py-6 text-right border-l border-white/10 text-amber-400">{{ formatCurrency(totals.committed) }}</td>
+                                    <td class="px-6 py-6 text-right border-l border-white/10 bg-indigo-600">Profit: {{ formatCurrency(totals.net_profit) }}</td>
                                     <td class="px-6 py-6 text-center border-l border-white/10">
                                         {{ totals.revenue > 0 ? ((totals.net_profit / totals.revenue) * 100).toFixed(2) + '%' : '-' }}
                                     </td>

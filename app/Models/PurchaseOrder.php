@@ -5,34 +5,35 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Bill extends Model
+class PurchaseOrder extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'company_id',
         'vendor_id',
-        'purchase_order_id',
-        'type',
-        'bill_number',
-        'bill_date',
-        'due_date',
+        'project_id',
+        'po_number',
+        'po_date',
+        'expected_delivery_date',
         'total_amount',
+        'tax_type',
         'vat_amount',
+        'ewt_rate',
         'ewt_amount',
         'net_amount',
         'status',
         'notes',
-        'project_id',
-        'journal_entry_id',
-        'created_by',
+        'prepared_by',
+        'approved_by',
     ];
 
     protected $casts = [
-        'bill_date' => 'date',
-        'due_date' => 'date',
+        'po_date' => 'date',
+        'expected_delivery_date' => 'date',
         'total_amount' => 'decimal:4',
         'vat_amount' => 'decimal:4',
+        'ewt_rate' => 'decimal:2',
         'ewt_amount' => 'decimal:4',
         'net_amount' => 'decimal:4',
     ];
@@ -52,18 +53,23 @@ class Bill extends Model
         return $this->belongsTo(Project::class);
     }
 
-    public function journalEntry()
-    {
-        return $this->belongsTo(JournalEntry::class);
-    }
-
-    public function creator()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
     public function items()
     {
-        return $this->hasMany(BillItem::class);
+        return $this->hasMany(PurchaseOrderItem::class);
+    }
+
+    public function bills()
+    {
+        return $this->hasMany(Bill::class);
+    }
+
+    public function preparedBy()
+    {
+        return $this->belongsTo(User::class, 'prepared_by');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

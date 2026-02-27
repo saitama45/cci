@@ -211,6 +211,13 @@ const submitReprice = () => {
                     </div>
                 </div>
                 <div class="mt-4 md:mt-0 flex space-x-3">
+                    <Link
+                        :href="route('contracted-sales.ledger', sale.id)"
+                        class="inline-flex items-center px-4 py-2 bg-white text-indigo-600 border border-indigo-100 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-50 transition-all"
+                    >
+                        <DocumentChartBarIcon class="w-4 h-4 mr-2" />
+                        Customer Ledger
+                    </Link>
                     <button 
                         @click="showRepriceModal = true"
                         class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all"

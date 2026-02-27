@@ -50,6 +50,8 @@ class PaymentController extends Controller
 
     public function show($id)
     {
+        $companyId = Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        
         $contract = \App\Models\ContractedSale::with([
             'customer', 
             'unit.project',
@@ -57,9 +59,12 @@ class PaymentController extends Controller
             'paymentSchedules' => fn($q) => $q->orderBy('due_date', 'asc')
         ])->findOrFail($id);
 
+        $banks = \App\Models\Bank::where('company_id', $companyId)->where('is_active', true)->get();
+
         return Inertia::render('Accounting/Payments/Show', [
             'contract' => $contract,
-            'payment_methods' => ['Cash', 'Check', 'Bank Transfer', 'GCash/Maya', 'Other'],
+            'banks' => $banks,
+            'payment_methods' => ['Cash', 'Check', 'Bank Transfer', 'PDC', 'Bulk PDC', 'GCash/Maya', 'Other'],
         ]);
     }
 
@@ -68,80 +73,140 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'contracted_sale_id' => 'required|exists:contracted_sales,id',
             'schedule_ids' => 'required|array',
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required_unless:payment_method,Bulk PDC|numeric|min:0.01|nullable',
             'payment_date' => 'required|date',
             'payment_method' => 'required|string',
-            'reference_no' => 'required|string',
+            'reference_no' => 'required_unless:payment_method,Bulk PDC|string|nullable',
             'notes' => 'nullable|string',
+            // PDC Fields (Optional unless method is Check/PDC/Bulk PDC)
+            'bank_id' => 'required_if:payment_method,Bulk PDC|nullable|exists:banks,id',
+            'check_no' => 'nullable|string',
+            'check_date' => 'nullable|date',
+            'starting_check_no' => 'required_if:payment_method,Bulk PDC|nullable|string',
         ]);
 
         $companyId = Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
         $contract = \App\Models\ContractedSale::findOrFail($validated['contracted_sale_id']);
 
         DB::transaction(function () use ($validated, $companyId, $contract) {
-            $payment = Payment::create([
-                'company_id' => $companyId,
-                'customer_id' => $contract->customer_id,
-                'reservation_id' => $contract->reservation_id,
-                'payment_type' => 'Amortization',
-                'amount' => $validated['amount'],
-                'payment_date' => $validated['payment_date'],
-                'payment_method' => $validated['payment_method'],
-                'reference_no' => $validated['reference_no'],
-                'notes' => $validated['notes'],
-            ]);
-
-            $totalAmount = (float)$validated['amount'];
             $schedules = \App\Models\PaymentSchedule::whereIn('id', $validated['schedule_ids'])
                 ->orderBy('due_date', 'asc')
                 ->get();
 
-            $totalPrincipalPaid = 0;
-            $totalInterestPaid = 0;
+            if ($validated['payment_method'] === 'Bulk PDC') {
+                $checkNoInt = (int) preg_replace('/[^0-9]/', '', $validated['starting_check_no']);
+                $prefix = preg_replace('/[0-9]/', '', $validated['starting_check_no']);
+                $bank = \App\Models\Bank::find($validated['bank_id']);
 
-            foreach ($schedules as $schedule) {
-                if ($totalAmount <= 0) break;
+                foreach ($schedules as $schedule) {
+                    $amountDue = $schedule->amount_due - $schedule->amount_paid;
+                    if ($amountDue <= 0) continue;
 
-                $remainingDue = (float)$schedule->amount_due - (float)$schedule->amount_paid;
-                $toPay = min($totalAmount, $remainingDue);
-                
-                // For data science precision, we breakdown the payment into principal and interest
-                // Ratio = toPay / remainingDue (if it's a partial payment)
-                // but usually we pay full installments here.
-                if ($toPay >= $remainingDue) {
-                    $principalPortion = (float)$schedule->principal - (float)$schedule->principal_paid; // assuming we track principal_paid too, but we don't yet in model.
-                    // Let's simplify: if fully paid, use schedule principal/interest
-                    // If partially paid, we need a better model. 
-                    // For now, let's assume installments are usually paid in full as per UI selection.
-                    $principalPortion = (float)$schedule->principal;
-                    $interestPortion = (float)$schedule->interest;
-                } else {
-                    // Pro-rated for partial
-                    $ratio = $toPay / (float)$schedule->amount_due;
-                    $principalPortion = (float)$schedule->principal * $ratio;
-                    $interestPortion = (float)$schedule->interest * $ratio;
+                    $currentCheckNo = $prefix . str_pad($checkNoInt, strlen(preg_replace('/[^0-9]/', '', $validated['starting_check_no'])), '0', STR_PAD_LEFT);
+
+                    $payment = Payment::create([
+                        'company_id' => $companyId,
+                        'customer_id' => $contract->customer_id,
+                        'reservation_id' => $contract->reservation_id,
+                        'payment_type' => 'Amortization',
+                        'amount' => $amountDue,
+                        'payment_date' => $schedule->due_date, // Payment date aligns with maturity/due date
+                        'payment_method' => 'PDC',
+                        'reference_no' => 'CHK-' . $currentCheckNo,
+                        'notes' => $validated['notes'] ?? 'Bulk PDC Generation',
+                    ]);
+
+                    \App\Models\PdcVault::create([
+                        'company_id' => $companyId,
+                        'type' => 'Inward',
+                        'payment_id' => $payment->id,
+                        'customer_id' => $contract->customer_id,
+                        'bank_id' => $validated['bank_id'],
+                        'bank_name' => $bank?->name ?? 'Unknown',
+                        'check_no' => $currentCheckNo,
+                        'check_date' => $schedule->due_date, // Maturity follows due date
+                        'amount' => $amountDue,
+                        'status' => 'Pending',
+                    ]);
+
+                    $schedule->update([
+                        'amount_paid' => $schedule->amount_due,
+                        'status' => 'Paid'
+                    ]);
+
+                    $this->accountingService->recordGeneralPaymentReceipt($payment, $schedule->principal, $schedule->interest);
+
+                    $checkNoInt++;
+                }
+            } else {
+                // Standard Single Payment Logic
+                $payment = Payment::create([
+                    'company_id' => $companyId,
+                    'customer_id' => $contract->customer_id,
+                    'reservation_id' => $contract->reservation_id,
+                    'payment_type' => 'Amortization',
+                    'amount' => $validated['amount'],
+                    'payment_date' => $validated['payment_date'],
+                    'payment_method' => $validated['payment_method'],
+                    'reference_no' => $validated['reference_no'],
+                    'notes' => $validated['notes'],
+                ]);
+
+                if (in_array($validated['payment_method'], ['Check', 'PDC'])) {
+                    $bank = \App\Models\Bank::find($validated['bank_id']);
+                    \App\Models\PdcVault::create([
+                        'company_id' => $companyId,
+                        'type' => 'Inward',
+                        'payment_id' => $payment->id,
+                        'customer_id' => $contract->customer_id,
+                        'bank_id' => $validated['bank_id'],
+                        'bank_name' => $bank?->name ?? 'Unknown',
+                        'check_no' => $validated['check_no'] ?? $validated['reference_no'],
+                        'check_date' => $validated['check_date'] ?? $validated['payment_date'],
+                        'amount' => $validated['amount'],
+                        'status' => 'Pending',
+                    ]);
                 }
 
-                $totalPrincipalPaid += $principalPortion;
-                $totalInterestPaid += $interestPortion;
-
-                $schedule->increment('amount_paid', $toPay);
+                $totalAmount = (float)$validated['amount'];
                 
-                // Fix: Use rounded comparison to avoid Partially Paid status due to precision errors
-                $amountPaid = round((float)$schedule->amount_paid, 2);
-                $amountDue = round((float)$schedule->amount_due, 2);
+                $totalPrincipalPaid = 0;
+                $totalInterestPaid = 0;
 
-                if ($amountPaid >= $amountDue) {
-                    $schedule->update(['status' => 'Paid']);
-                } else {
-                    $schedule->update(['status' => 'Partially Paid']);
+                foreach ($schedules as $schedule) {
+                    if ($totalAmount <= 0) break;
+
+                    $remainingDue = (float)$schedule->amount_due - (float)$schedule->amount_paid;
+                    $toPay = min($totalAmount, $remainingDue);
+                    
+                    if ($toPay >= $remainingDue) {
+                        $principalPortion = (float)$schedule->principal;
+                        $interestPortion = (float)$schedule->interest;
+                    } else {
+                        $ratio = $toPay / (float)$schedule->amount_due;
+                        $principalPortion = (float)$schedule->principal * $ratio;
+                        $interestPortion = (float)$schedule->interest * $ratio;
+                    }
+
+                    $totalPrincipalPaid += $principalPortion;
+                    $totalInterestPaid += $interestPortion;
+
+                    $schedule->increment('amount_paid', $toPay);
+                    
+                    $amountPaid = round((float)$schedule->amount_paid, 2);
+                    $amountDue = round((float)$schedule->amount_due, 2);
+
+                    if ($amountPaid >= $amountDue) {
+                        $schedule->update(['status' => 'Paid']);
+                    } else {
+                        $schedule->update(['status' => 'Partially Paid']);
+                    }
+                    
+                    $totalAmount -= $toPay;
                 }
-                
-                $totalAmount -= $toPay;
+
+                $this->accountingService->recordGeneralPaymentReceipt($payment, $totalPrincipalPaid, $totalInterestPaid);
             }
-
-            // Auto-generate Journal Entry with breakdown
-            $this->accountingService->recordGeneralPaymentReceipt($payment, $totalPrincipalPaid, $totalInterestPaid);
         });
 
         return redirect()->route('payments.index')->with('success', 'Payment recorded successfully.');

@@ -576,6 +576,64 @@ class AccountingService
     }
 
     /**
+     * Records a disbursement (Payment Voucher).
+     * Debit: Accounts Payable (Liability reduction)
+     * Credit: Cash/Bank Account (Asset reduction)
+     */
+    public function recordDisbursement($disbursement)
+    {
+        return DB::transaction(function () use ($disbursement) {
+            $companyId = $disbursement->company_id;
+            
+            // 1. Get Accounts Payable account (2300)
+            $apAccount = ChartOfAccount::where('company_id', $companyId)->where('code', '2300')->first();
+            
+            // 2. Get Cash/Bank Account (as specified in the voucher)
+            $cashAccount = ChartOfAccount::find($disbursement->bank_account_id);
+            
+            if (!$apAccount || !$cashAccount) {
+                throw new \Exception("Accounts Payable or Cash account not found.");
+            }
+
+            // 3. Create Journal Entry Header
+            $journalEntry = JournalEntry::create([
+                'company_id' => $companyId,
+                'user_id' => Auth::id(),
+                'transaction_date' => $disbursement->payment_date,
+                'reference_no' => $disbursement->voucher_no,
+                'referenceable_type' => get_class($disbursement),
+                'referenceable_id' => $disbursement->id,
+                'description' => "Disbursement to " . ($disbursement->vendor->name ?? 'Vendor'),
+            ]);
+
+            // 4. Create Debit Line for Accounts Payable (Total Amount)
+            // Note: In a more detailed system, we might split this per bill/project, 
+            // but for simple AP, we debit the total AP control account.
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $apAccount->id,
+                'debit' => $disbursement->total_amount,
+                'credit' => 0,
+                'memo' => "Payment for bills: " . $disbursement->items->map(fn($i) => "#" . $i->bill->bill_number)->implode(', '),
+            ]);
+
+            // 5. Create Credit Line for Cash/Bank
+            JournalEntryLine::create([
+                'journal_entry_id' => $journalEntry->id,
+                'chart_of_account_id' => $cashAccount->id,
+                'debit' => 0,
+                'credit' => $disbursement->total_amount,
+                'memo' => "Disbursement via " . $disbursement->payment_method,
+            ]);
+
+            // 6. Link Journal Entry to Disbursement
+            $disbursement->update(['journal_entry_id' => $journalEntry->id]);
+
+            return $journalEntry;
+        });
+    }
+
+    /**
      * Records associated accounting entries when a reservation fee is modified.
      */
     public function updateReservationAccounting($reservation)
@@ -624,5 +682,145 @@ class AccountingService
 
             return true;
         });
+    }
+
+    /**
+     * Converts a number to words for accounting documents (PDF Vouchers, Checks).
+     * Provides a fallback if the 'intl' extension is missing.
+     */
+    public function formatAmountInWords($amount)
+    {
+        // 1. Clean the amount: ensure only 2 decimal places for money (cents)
+        // This prevents 17000.0000 from becoming "seventeen thousand point zero zero zero zero"
+        $amount = round((float)$amount, 2);
+
+        // 2. Separate whole number and fraction
+        $wholeNumber = floor($amount);
+        $fraction = round(($amount - $wholeNumber) * 100);
+
+        // 3. Convert whole number to words
+        $words = '';
+        try {
+            if (extension_loaded('intl')) {
+                $words = \Illuminate\Support\Number::spell($wholeNumber);
+            } else {
+                $words = $this->numberToWordsFallback($wholeNumber);
+            }
+        } catch (\Exception $e) {
+            $words = $this->numberToWordsFallback($wholeNumber);
+        }
+
+        // 4. Handle Cents/Fraction (Standard Check Format: "AND 00/100")
+        if ($fraction > 0) {
+            $words .= " and " . str_pad($fraction, 2, '0', STR_PAD_LEFT) . "/100";
+        } else {
+            $words .= " and 00/100";
+        }
+
+        return $words;
+    }
+
+    /**
+     * Manual implementation of number to words (English).
+     * Only handles whole numbers now as decimals are handled by formatAmountInWords.
+     */
+    private function numberToWordsFallback($number)
+    {
+        $number = (int)$number; // Ensure whole number for the recursion
+        $hyphen      = '-';
+        $conjunction = ' and ';
+        $separator   = ', ';
+        $negative    = 'negative ';
+        $decimal     = ' point ';
+        $dictionary  = array(
+            0                   => 'zero',
+            1                   => 'one',
+            2                   => 'two',
+            3                   => 'three',
+            4                   => 'four',
+            5                   => 'five',
+            6                   => 'six',
+            7                   => 'seven',
+            8                   => 'eight',
+            9                   => 'nine',
+            10                  => 'ten',
+            11                  => 'eleven',
+            12                  => 'twelve',
+            13                  => 'thirteen',
+            14                  => 'fourteen',
+            15                  => 'fifteen',
+            16                  => 'sixteen',
+            17                  => 'seventeen',
+            18                  => 'eighteen',
+            19                  => 'nineteen',
+            20                  => 'twenty',
+            30                  => 'thirty',
+            40                  => 'fourty',
+            50                  => 'fifty',
+            60                  => 'sixty',
+            70                  => 'seventy',
+            80                  => 'eighty',
+            90                  => 'ninety',
+            100                 => 'hundred',
+            1000                => 'thousand',
+            1000000             => 'million',
+            1000000000          => 'billion',
+            1000000000000       => 'trillion',
+            1000000000000000    => 'quadrillion',
+            1000000000000000000 => 'quintillion'
+        );
+
+        if (!is_numeric($number)) {
+            return false;
+        }
+
+        if (($number >= 0 && (int) $number < 0) || (int) $number < 0 - PHP_INT_MAX) {
+            // overflow
+            trigger_error(
+                'numberToWordsFallback only accepts numbers between -' . PHP_INT_MAX . ' and ' . PHP_INT_MAX,
+                E_USER_WARNING
+            );
+            return false;
+        }
+
+        if ($number < 0) {
+            return $negative . $this->numberToWordsFallback(abs($number));
+        }
+
+        $string = null;
+
+        switch (true) {
+            case $number < 21:
+                $string = $dictionary[$number];
+                break;
+            case $number < 100:
+                $tens   = ((int) ($number / 10)) * 10;
+                $units  = $number % 10;
+                $string = $dictionary[$tens];
+                if ($units) {
+                    $string .= $hyphen . $dictionary[$units];
+                }
+                break;
+            case $number < 1000:
+                $hundreds  = $number / 100;
+                $remainder = $number % 100;
+                $string = $dictionary[(int) $hundreds] . ' ' . $dictionary[100];
+                if ($remainder) {
+                    $string .= $conjunction . $this->numberToWordsFallback($remainder);
+                }
+                break;
+            default:
+                $baseUnit = pow(1000, floor(log($number, 1000)));
+                $numBaseUnits = (int) ($number / $baseUnit);
+                $remainder = $number % $baseUnit;
+                $string = $this->numberToWordsFallback($numBaseUnits) . ' ' . $dictionary[$baseUnit];
+                if ($remainder) {
+                    $string .= $remainder < 100 ? $conjunction : $separator;
+                    $string .= $this->numberToWordsFallback($remainder);
+                }
+                break;
+        }
+
+        return $string;
     }
 }

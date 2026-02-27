@@ -16,7 +16,8 @@ class ProjectController extends Controller
     {
         $this->authorize('viewAny', Project::class);
 
-        $query = Project::query();
+        $companyId = auth()->user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
+        $query = Project::where('company_id', $companyId);
 
         if ($request->has('search')) {
             $search = $request->input('search');
@@ -42,13 +43,24 @@ class ProjectController extends Controller
     {
         $this->authorize('create', Project::class);
 
+        $companyId = auth()->user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
+
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'code' => 'required|string|max:20|unique:projects',
+            'code' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('projects')->where(function ($query) use ($companyId) {
+                    return $query->where('company_id', $companyId);
+                })
+            ],
             'location' => 'required|string',
             'map_overlay' => 'nullable|string',
             'is_active' => 'boolean',
         ]);
+
+        $validated['company_id'] = $companyId;
 
         Project::create($validated);
 
@@ -74,9 +86,18 @@ class ProjectController extends Controller
     {
         $this->authorize('update', $project);
 
+        $companyId = auth()->user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
+
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'code' => ['required', 'string', 'max:20', Rule::unique('projects')->ignore($project->id)],
+            'code' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('projects')->ignore($project->id)->where(function ($query) use ($companyId) {
+                    return $query->where('company_id', $companyId);
+                })
+            ],
             'location' => 'required|string',
             'map_overlay' => 'nullable|string',
             'is_active' => 'boolean',

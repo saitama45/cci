@@ -39,7 +39,7 @@ class JournalEntryController extends Controller
         $companyId = Auth::user()->company_id ?: (\App\Models\Company::first()->id ?? 1);
         
         return Inertia::render('Accounting/JournalEntries/Create', [
-            'accounts' => ChartOfAccount::where('company_id', $companyId)->active()->get(),
+            'accounts' => ChartOfAccount::where('company_id', $companyId)->where('is_active', true)->get(),
         ]);
     }
 
