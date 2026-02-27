@@ -45,6 +45,7 @@
                         <template #header>
                             <tr class="bg-slate-50">
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Role Designation</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Landing Page</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Permission Scope</th>
                                 <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Actions</th>
                             </tr>
@@ -62,6 +63,12 @@
                                             <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">System Identifier: {{ role.name.toLowerCase().replace(' ', '_') }}</div>
                                         </div>
                                     </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span v-if="role.landing_page" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        {{ landing_page_options.find(opt => opt.route === role.landing_page)?.label || role.landing_page }}
+                                    </span>
+                                    <span v-else class="text-xs text-slate-400 italic">Default (Dashboard)</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <button 
@@ -148,6 +155,17 @@
                             <label class="block text-sm font-bold text-slate-700 mb-2">Role Designation (Display Name)</label>
                             <input v-model="form.name" type="text" required placeholder="Ex. Accounting Manager"
                                    class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold">
+                        </div>
+
+                        <div class="mb-8">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Assigned Landing Page</label>
+                            <select v-model="form.landing_page" 
+                                    class="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold">
+                                <option v-for="option in landing_page_options" :key="option.route" :value="option.route">
+                                    {{ option.label }}
+                                </option>
+                            </select>
+                            <p class="text-xs text-slate-400 mt-2">The system will redirect the user to this module immediately after successful login.</p>
                         </div>
 
                         <div class="mb-8">
@@ -250,6 +268,7 @@ const props = defineProps({
     roles: Object,
     permissions: Object,
     companies: Array,
+    landing_page_options: Array,
 })
 
 const { showSuccess, showError } = useToast()
@@ -268,6 +287,7 @@ const form = reactive({
     name: '',
     permissions: [],
     company_ids: [],
+    landing_page: 'dashboard',
 })
 
 onMounted(() => {
@@ -293,6 +313,7 @@ const openCreateModal = () => {
     currentRole.value = null
     form.name = ''
     form.permissions = []
+    form.landing_page = 'dashboard'
     
     // Default select "Real Estate Developers" if it exists
     const defaultCompany = props.companies.find(c => c.name.toLowerCase().includes('real estate developers'));
@@ -353,6 +374,7 @@ const editRole = (role) => {
     form.name = role.name
     form.permissions = role.permissions.map(p => p.name)
     form.company_ids = role.companies ? role.companies.map(c => c.id) : []
+    form.landing_page = role.landing_page || 'dashboard'
     showModal.value = true
 }
 
@@ -361,6 +383,7 @@ const closeModal = () => {
     form.name = ''
     form.permissions = []
     form.company_ids = []
+    form.landing_page = 'dashboard'
 }
 
 const submitForm = () => {

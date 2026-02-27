@@ -104,6 +104,43 @@ class RoleService
     public static array $permissionOrder = ['view', 'show', 'create', 'edit', 'delete', 'export', 'approve', 'cancel'];
 
     /**
+     * Get available landing page options for roles
+     */
+    public static function getLandingPageOptions()
+    {
+        return [
+            ['label' => 'Dashboard', 'route' => 'dashboard'],
+            ['label' => 'Customers', 'route' => 'customers.index'],
+            ['label' => 'Brokers & Agents', 'route' => 'brokers.index'],
+            ['label' => 'Reservations', 'route' => 'reservations.index'],
+            ['label' => 'Contracted Sales', 'route' => 'contracted-sales.index'],
+            ['label' => 'Projects', 'route' => 'projects.index'],
+            ['label' => 'Units / Lots', 'route' => 'units.index'],
+            ['label' => 'Price Lists', 'route' => 'price-lists.index'],
+            ['label' => 'Vendors', 'route' => 'vendors.index'],
+            ['label' => 'Purchase Orders', 'route' => 'accounting.purchase-orders.index'],
+            ['label' => 'Bills / AP', 'route' => 'accounting.bills.index'],
+            ['label' => 'Disbursements / PV', 'route' => 'accounting.disbursements.index'],
+            ['label' => 'PDC Vault', 'route' => 'accounting.disbursements.vault'],
+            ['label' => 'Collections', 'route' => 'payments.index'],
+            ['label' => 'Bank Recon', 'route' => 'accounting.reconciliations.index'],
+            ['label' => 'Bank Management', 'route' => 'accounting.banks.index'],
+            ['label' => 'Chart of Accounts', 'route' => 'chart-of-accounts.index'],
+            ['label' => 'Journal Entries', 'route' => 'journal-entries.index'],
+            ['label' => 'Trial Balance', 'route' => 'accounting.trial-balance'],
+            ['label' => 'General Ledger', 'route' => 'accounting.general-ledger'],
+            ['label' => 'Project P&L', 'route' => 'accounting.project-pl'],
+            ['label' => 'AR Aging', 'route' => 'accounting.ar-aging'],
+            ['label' => 'AP Aging', 'route' => 'accounting.ap-aging'],
+            ['label' => 'Overall Receivables', 'route' => 'accounting.overall-receivables'],
+            ['label' => 'Users', 'route' => 'users.index'],
+            ['label' => 'Companies', 'route' => 'companies.index'],
+            ['label' => 'Roles & Permissions', 'route' => 'roles.index'],
+            ['label' => 'Document Checklist', 'route' => 'document-requirements.index'],
+        ];
+    }
+
+    /**
      * Get all roles with their permissions
      */
     public static function getAllRoles()

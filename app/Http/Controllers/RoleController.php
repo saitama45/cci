@@ -33,11 +33,13 @@ class RoleController extends Controller
         $roles = $query->paginate($request->get('per_page', 10))->withQueryString();
         $permissions = RoleService::getPermissionsByCategory();
         $companies = Company::where('is_active', true)->select('id', 'name')->orderBy('name')->get();
+        $landingPageOptions = RoleService::getLandingPageOptions();
 
         return Inertia::render('Roles/Index', [
             'roles' => $roles,
             'permissions' => $permissions,
             'companies' => $companies,
+            'landing_page_options' => $landingPageOptions,
         ]);
     }
 
@@ -48,9 +50,13 @@ class RoleController extends Controller
             'permissions' => 'array',
             'company_ids' => 'array',
             'company_ids.*' => 'exists:companies,id',
+            'landing_page' => 'nullable|string|max:255',
         ]);
 
-        $role = Role::create(['name' => $request->name]);
+        $role = Role::create([
+            'name' => $request->name,
+            'landing_page' => $request->landing_page,
+        ]);
         
         if ($request->permissions) {
             $role->syncPermissions($request->permissions);
@@ -70,9 +76,11 @@ class RoleController extends Controller
             'permissions' => 'array',
             'company_ids' => 'array',
             'company_ids.*' => 'exists:companies,id',
+            'landing_page' => 'nullable|string|max:255',
         ]);
 
         $role->name = $request->name;
+        $role->landing_page = $request->landing_page;
         $role->save();
         $role->syncPermissions($request->permissions ?? []);
         
