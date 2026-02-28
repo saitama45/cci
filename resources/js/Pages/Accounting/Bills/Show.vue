@@ -2,6 +2,7 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import WorkflowTimeline from '@/Components/WorkflowTimeline.vue';
 import { useToast } from '@/Composables/useToast';
 import { useConfirm } from '@/Composables/useConfirm';
 import { usePermission } from '@/Composables/usePermission';
@@ -313,6 +314,14 @@ const deleteBill = async () => {
 
                     <!-- Side Panel: Accounting Impact -->
                     <div class="space-y-6">
+                        <WorkflowTimeline 
+                            :status="bill.status"
+                            :prepared-by="bill.creator"
+                            :approved-by="bill.approved_by"
+                            :created-at="bill.created_at"
+                            :updated-at="bill.updated_at"
+                        />
+
                         <!-- Tax Summary Card (If PO Linked or Taxes exist) -->
                         <div v-if="parseFloat(bill.vat_amount) > 0 || parseFloat(bill.ewt_amount) > 0" class="bg-slate-900 rounded-xl p-6 shadow-xl border border-slate-800 text-white relative overflow-hidden">
                             <div class="relative z-10 space-y-3">

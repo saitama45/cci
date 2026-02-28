@@ -2,6 +2,7 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import WorkflowTimeline from '@/Components/WorkflowTimeline.vue';
 import { 
     ChevronLeftIcon,
     PrinterIcon,
@@ -260,6 +261,15 @@ const printPO = () => {
 
                     <!-- Right: Info Cards -->
                     <div class="space-y-6">
+                        <WorkflowTimeline 
+                            :status="purchaseOrder.status"
+                            :prepared-by="purchaseOrder.prepared_by"
+                            :approved-by="purchaseOrder.approved_by"
+                            :created-at="purchaseOrder.created_at"
+                            :updated-at="purchaseOrder.updated_at"
+                            :is-billed="['Billed', 'Partially Billed'].includes(purchaseOrder.status)"
+                        />
+
                         <!-- Tax Breakdown Card -->
                         <div class="bg-slate-900 rounded-[2rem] p-8 shadow-xl border border-slate-800 text-white relative overflow-hidden">
                             <div class="relative z-10 space-y-4">
@@ -302,33 +312,6 @@ const printPO = () => {
                                     </div>
                                     <span class="text-sm font-black text-slate-900">{{ formatCurrency(bill.total_amount) }}</span>
                                 </Link>
-                            </div>
-                        </div>
-
-                        <!-- Audit Trail -->
-                        <div class="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200">
-                            <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Internal Controls</h3>
-                            <div class="space-y-6">
-                                <div class="flex items-start space-x-4">
-                                    <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                                        <UserIcon class="w-4 h-4 text-slate-500" />
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Prepared By</p>
-                                        <p class="text-sm font-bold text-slate-800">{{ purchaseOrder.prepared_by?.name || 'System' }}</p>
-                                        <p class="text-[10px] text-slate-400">{{ purchaseOrder.created_at }}</p>
-                                    </div>
-                                </div>
-                                <div v-if="purchaseOrder.approved_by" class="flex items-start space-x-4">
-                                    <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                                        <CheckCircleIcon class="w-4 h-4 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Approved By</p>
-                                        <p class="text-sm font-bold text-slate-800">{{ purchaseOrder.approved_by?.name }}</p>
-                                        <p class="text-[10px] text-slate-400">{{ purchaseOrder.updated_at }}</p>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>

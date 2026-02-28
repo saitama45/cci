@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import WorkflowTimeline from '@/Components/WorkflowTimeline.vue';
 import { 
     ArrowLeftIcon,
     PrinterIcon,
@@ -272,10 +273,17 @@ const getStatusClass = (status) => {
                         </div>
                     </div>
 
-                    <!-- Sidebar Info (1 col) -->
-                    <div class="space-y-6">
-                        
-                        <!-- PDC Info Card -->
+                                        <!-- Sidebar Info (1 col) -->
+                                        <div class="space-y-6">
+                                            <WorkflowTimeline 
+                                                :status="disbursement.status"
+                                                :prepared-by="disbursement.prepared_by"
+                                                :approved-by="disbursement.approved_by"
+                                                :created-at="disbursement.created_at"
+                                                :updated-at="disbursement.updated_at"
+                                            />
+                    
+                                            <!-- PDC Info Card -->
                         <div v-if="disbursement.payment_method === 'PDC' && disbursement.pdc_detail" class="bg-amber-50 border border-amber-200 rounded-xl p-6">
                             <h3 class="text-md font-bold text-amber-900 mb-4 flex items-center">
                                 <ClockIcon class="w-5 h-5 mr-2" />
@@ -304,34 +312,6 @@ const getStatusClass = (status) => {
                                         {{ disbursement.pdc_detail.bank_name }} 
                                         <span v-if="disbursement.pdc_detail.bank_branch" class="text-amber-700 font-normal">({{ disbursement.pdc_detail.bank_branch }})</span>
                                     </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Audit Trail -->
-                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                            <h3 class="text-md font-bold text-slate-800 mb-4 uppercase tracking-wider text-xs">Internal Control</h3>
-                            <div class="space-y-4">
-                                <div class="flex items-start space-x-3">
-                                    <div class="mt-1 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                        <UserIcon class="w-4 h-4 text-slate-500" />
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-slate-400">Prepared By</p>
-                                        <p class="text-sm font-bold text-slate-700">{{ disbursement.prepared_by?.name || 'Unknown' }}</p>
-                                        <p class="text-[10px] text-slate-400">{{ disbursement.created_at }}</p>
-                                    </div>
-                                </div>
-                                
-                                <div v-if="disbursement.approved_by" class="flex items-start space-x-3">
-                                    <div class="mt-1 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                        <ShieldCheckIcon class="w-4 h-4 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-slate-400">Approved By</p>
-                                        <p class="text-sm font-bold text-slate-700">{{ disbursement.approved_by?.name }}</p>
-                                        <p class="text-[10px] text-slate-400">{{ disbursement.updated_at }}</p>
-                                    </div>
                                 </div>
                             </div>
                         </div>

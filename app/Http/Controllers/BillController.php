@@ -164,6 +164,7 @@ class BillController extends Controller
                 'notes' => $validated['notes'],
                 'project_id' => $validated['project_id'],
                 'created_by' => Auth::id(),
+                'approved_by' => $validated['status'] === 'Approved' ? Auth::id() : null,
             ]);
 
             LogActivity::log('Procurement', 'Created', "Created {$bill->type} #{$bill->bill_number}", $bill);
@@ -243,6 +244,12 @@ class BillController extends Controller
 
             return DB::transaction(function () use ($validated, $bill) {
                 $oldStatus = $bill->status;
+                
+                // If status is changing to Approved, set approved_by
+                if ($validated['status'] === 'Approved') {
+                    $validated['approved_by'] = Auth::id();
+                }
+                
                 $bill->update($validated);
 
                 LogActivity::log('Procurement', $bill->status, "Updated status of {$bill->type} #{$bill->bill_number} to {$bill->status}", $bill);

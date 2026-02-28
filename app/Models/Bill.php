@@ -26,6 +26,7 @@ class Bill extends Model
         'project_id',
         'journal_entry_id',
         'created_by',
+        'approved_by',
     ];
 
     protected $casts = [
@@ -60,6 +61,16 @@ class Bill extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class);
     }
 
     public function items()
