@@ -56,6 +56,10 @@ class RoleService
             'label' => 'Reservations',
             'permissions' => ['view', 'show', 'create', 'edit', 'delete']
         ],
+        'contracted_sales' => [
+            'label' => 'Contracted Sales',
+            'permissions' => ['view', 'show', 'export']
+        ],
         'accounting' => [
             'label' => 'Accounting Reports',
             'permissions' => ['view']
@@ -91,6 +95,10 @@ class RoleService
         'reconciliations' => [
             'label' => 'Bank Reconciliations',
             'permissions' => ['view', 'show', 'create', 'complete']
+        ],
+        'banks' => [
+            'label' => 'Bank Management',
+            'permissions' => ['view', 'create', 'edit', 'delete']
         ],
         'collections' => [
             'label' => 'Collections',

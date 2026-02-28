@@ -54,4 +54,25 @@ class User extends Authenticatable
         $this->last_login = now();
         $this->save();
     }
+
+    /**
+     * Get the landing page route name for the user based on their roles.
+     * 
+     * @return string
+     */
+    public function getLandingPageRoute(): string
+    {
+        // For debugging, we can see roles
+        if ($this->roles->isEmpty()) {
+            return 'dashboard';
+        }
+
+        // Find the first role that has a specific landing page set
+        $roleWithLandingPage = $this->roles->first(fn($role) => !empty($role->landing_page) && $role->landing_page !== 'dashboard');
+
+        $route = $roleWithLandingPage ? $roleWithLandingPage->landing_page : 'dashboard';
+
+        // Final safety check to ensure the route exists
+        return \Illuminate\Support\Facades\Route::has($route) ? $route : 'dashboard';
+    }
 }

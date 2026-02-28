@@ -11,6 +11,10 @@ class BankController extends Controller
 {
     public function index()
     {
+        if (!Auth::user()->can('banks.view')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $companyId = Auth::user()->company_id ?? (\App\Models\Company::first()->id ?? null);
         $banks = Bank::where('company_id', $companyId)->get();
 
@@ -21,6 +25,10 @@ class BankController extends Controller
 
     public function store(Request $request)
     {
+        if (!Auth::user()->can('banks.create')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:banks,code',
@@ -37,6 +45,10 @@ class BankController extends Controller
 
     public function update(Request $request, Bank $bank)
     {
+        if (!Auth::user()->can('banks.edit')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:banks,code,' . $bank->id,
@@ -52,6 +64,10 @@ class BankController extends Controller
 
     public function destroy(Bank $bank)
     {
+        if (!Auth::user()->can('banks.delete')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $bank->delete();
         return redirect()->back()->with('success', 'Bank deleted.');
     }

@@ -16,6 +16,17 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
+
+        $middleware->redirectTo(
+            '/login',
+            function (\Illuminate\Http\Request $request) {
+                $user = $request->user();
+                if ($user) {
+                    return route($user->getLandingPageRoute());
+                }
+                return route('dashboard');
+            }
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

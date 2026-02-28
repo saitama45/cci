@@ -9,6 +9,7 @@ use App\Models\Company;
 use Spatie\Permission\Models\Permission;
 use App\Http\Services\RoleService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\Rule;
 
 class RoleController extends Controller
 {
@@ -45,12 +46,14 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
+        $landingPageOptions = collect(RoleService::getLandingPageOptions())->pluck('route')->toArray();
+
         $request->validate([
             'name' => 'required|string|max:255|unique:roles',
             'permissions' => 'array',
             'company_ids' => 'array',
             'company_ids.*' => 'exists:companies,id',
-            'landing_page' => 'nullable|string|max:255',
+            'landing_page' => ['nullable', 'string', 'max:255', Rule::in($landingPageOptions)],
         ]);
 
         $role = Role::create([
@@ -71,12 +74,14 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
+        $landingPageOptions = collect(RoleService::getLandingPageOptions())->pluck('route')->toArray();
+
         $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
             'permissions' => 'array',
             'company_ids' => 'array',
             'company_ids.*' => 'exists:companies,id',
-            'landing_page' => 'nullable|string|max:255',
+            'landing_page' => ['nullable', 'string', 'max:255', Rule::in($landingPageOptions)],
         ]);
 
         $role->name = $request->name;

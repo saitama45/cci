@@ -104,7 +104,7 @@ const formatCurrency = (value) => {
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-black text-rose-600">
-                                    {{ formatCurrency(contract.current_balance) }}
+                                    {{ formatCurrency(contract.total_dues) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
                                     <Link 

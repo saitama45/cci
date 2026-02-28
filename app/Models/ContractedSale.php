@@ -36,7 +36,7 @@ class ContractedSale extends Model
         'start_date' => 'date',
     ];
 
-    protected $appends = ['total_paid', 'total_dp_paid', 'principal_paid', 'current_balance'];
+    protected $appends = ['total_paid', 'total_dp_paid', 'principal_paid', 'current_balance', 'total_dues'];
 
     public function getTotalPaidAttribute()
     {
@@ -65,6 +65,13 @@ class ContractedSale extends Model
         $paidPrincipal = $this->getPrincipalPaidAttribute();
             
         return max(0, $loanable - $paidPrincipal);
+    }
+
+    public function getTotalDuesAttribute()
+    {
+        $totalDue = (float) $this->paymentSchedules()->sum('amount_due');
+        $totalPaid = (float) $this->paymentSchedules()->sum('amount_paid');
+        return max(0, $totalDue - $totalPaid);
     }
 
     public function company()

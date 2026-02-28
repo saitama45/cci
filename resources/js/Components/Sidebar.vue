@@ -187,7 +187,7 @@ const handleMouseLeave = () => {
                 </Link>
 
                 <!-- 2. SALES & CRM -->
-                <div v-if="hasAnyPermission(['customers.view', 'reservations.view', 'brokers.view'])" class="space-y-1">
+                <div v-if="hasAnyPermission(['customers.view', 'reservations.view', 'brokers.view', 'contracted_sales.view'])" class="space-y-1">
                     <button 
                         @click="toggleMenu('sales')"
                         :class="[
@@ -206,7 +206,7 @@ const handleMouseLeave = () => {
                         <Link v-if="hasPermission('customers.view')" :href="route('customers.index')" :class="[route().current('customers.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Customers</Link>
                         <Link v-if="hasPermission('brokers.view')" :href="route('brokers.index')" :class="[route().current('brokers.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Brokers & Agents</Link>
                         <Link v-if="hasPermission('reservations.view')" :href="route('reservations.index')" :class="[route().current('reservations.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Reservations</Link>
-                        <Link v-if="hasPermission('reservations.view')" :href="route('contracted-sales.index')" :class="[route().current('contracted-sales.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Contracted Sales</Link>
+                        <Link v-if="hasPermission('contracted_sales.view')" :href="route('contracted-sales.index')" :class="[route().current('contracted-sales.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Contracted Sales</Link>
                     </div>
                 </div>
 
@@ -234,7 +234,7 @@ const handleMouseLeave = () => {
                 </div>
 
                 <!-- 4. PROCUREMENT (AP) -->
-                <div v-if="hasAnyPermission(['vendors.view', 'purchase_orders.view', 'bills.view', 'accounting.view'])" class="space-y-1">
+                <div v-if="hasAnyPermission(['vendors.view', 'purchase_orders.view', 'bills.view', 'disbursements.view'])" class="space-y-1">
                     <button 
                         @click="toggleMenu('procurement')"
                         :class="[
@@ -253,13 +253,13 @@ const handleMouseLeave = () => {
                         <Link v-if="hasPermission('vendors.view')" :href="route('vendors.index')" :class="[route().current('vendors.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Vendors</Link>
                         <Link v-if="hasPermission('purchase_orders.view')" :href="route('accounting.purchase-orders.index')" :class="[route().current('accounting.purchase-orders.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Purchase Orders</Link>
                         <Link v-if="hasPermission('bills.view')" :href="route('accounting.bills.index')" :class="[route().current('accounting.bills.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bills / AP</Link>
-                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.disbursements.index')" :class="[route().current('accounting.disbursements.index') || route().current('accounting.disbursements.show') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Disbursements / PV</Link>
-                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.disbursements.vault')" :class="[route().current('accounting.disbursements.vault') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">PDC Vault</Link>
+                        <Link v-if="hasPermission('disbursements.view')" :href="route('accounting.disbursements.index')" :class="[route().current('accounting.disbursements.index') || route().current('accounting.disbursements.show') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Disbursements / PV</Link>
+                        <Link v-if="hasPermission('disbursements.vault')" :href="route('accounting.disbursements.vault')" :class="[route().current('accounting.disbursements.vault') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">PDC Vault</Link>
                     </div>
                 </div>
 
                 <!-- 5. TREASURY & CASH -->
-                <div v-if="hasAnyPermission(['payments.view', 'accounting.view'])" class="space-y-1">
+                <div v-if="hasAnyPermission(['payments.view', 'reconciliations.view', 'banks.view'])" class="space-y-1">
                     <button 
                         @click="toggleMenu('treasury')"
                         :class="[
@@ -276,8 +276,8 @@ const handleMouseLeave = () => {
                     
                     <div v-if="openMenus.treasury && !isCollapsed" class="pl-10 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-2 duration-200">
                         <Link v-if="hasPermission('payments.view')" :href="route('payments.index')" :class="[route().current('payments.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Collections</Link>
-                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.reconciliations.index')" :class="[route().current('accounting.reconciliations.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bank Recon</Link>
-                        <Link v-if="hasPermission('accounting.view')" :href="route('accounting.banks.index')" :class="[route().current('accounting.banks.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bank Management</Link>
+                        <Link v-if="hasPermission('reconciliations.view')" :href="route('accounting.reconciliations.index')" :class="[route().current('accounting.reconciliations.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bank Recon</Link>
+                        <Link v-if="hasPermission('banks.view')" :href="route('accounting.banks.index')" :class="[route().current('accounting.banks.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Bank Management</Link>
                     </div>
                 </div>
 

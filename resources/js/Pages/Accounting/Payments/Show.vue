@@ -258,12 +258,22 @@ const groupedSchedules = computed(() => {
                     </div>
 
                     <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                        <div class="p-3 bg-blue-500 rounded-2xl">
+                            <IdentificationIcon class="w-6 h-6 text-white" />
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Principal Balance</p>
+                            <h4 class="text-sm font-black text-blue-600 truncate">{{ formatCurrency(contract.current_balance) }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex items-center space-x-4">
                         <div class="p-3 bg-rose-50 rounded-2xl">
                             <BanknotesIcon class="w-6 h-6 text-rose-600" />
                         </div>
                         <div class="min-w-0">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Total Outstanding</p>
-                            <h4 class="text-sm font-black text-rose-600 truncate">{{ formatCurrency(totalOutstanding) }}</h4>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Total Outstanding (Dues)</p>
+                            <h4 class="text-sm font-black text-rose-600 truncate">{{ formatCurrency(contract.total_dues) }}</h4>
                         </div>
                     </div>
                 </div>

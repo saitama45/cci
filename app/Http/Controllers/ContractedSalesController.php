@@ -15,6 +15,10 @@ class ContractedSalesController extends Controller
      */
     public function reprice(Request $request, $id)
     {
+        if (!auth()->user()->can('contracted_sales.edit')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $sale = ContractedSale::findOrFail($id);
 
         $validated = $request->validate([
@@ -120,6 +124,10 @@ class ContractedSalesController extends Controller
      */
     public function index(Request $request)
     {
+        if (!auth()->user()->can('contracted_sales.view')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $query = ContractedSale::with(['customer', 'unit.project', 'unit.priceList']);
 
         if ($request->search) {
@@ -148,6 +156,10 @@ class ContractedSalesController extends Controller
      */
     public function show($id)
     {
+        if (!auth()->user()->can('contracted_sales.show')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $sale = ContractedSale::with([
             'customer', 
             'unit.project', 
@@ -166,6 +178,10 @@ class ContractedSalesController extends Controller
      */
     public function ledger($id)
     {
+        if (!auth()->user()->can('contracted_sales.show')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $sale = ContractedSale::with(['customer', 'unit.project'])->findOrFail($id);
         
         // 1. Opening Balance: Total Contract Price (Debit)
@@ -253,6 +269,10 @@ class ContractedSalesController extends Controller
      */
     public function exportSOA($id)
     {
+        if (!auth()->user()->can('contracted_sales.export')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $sale = ContractedSale::with(['customer', 'unit.project', 'company'])->findOrFail($id);
         
         $now = now();
