@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import Sidebar from '@/Components/Sidebar.vue';
+import GlobalSearch from '@/Components/GlobalSearch.vue';
 import Toast from '@/Components/Toast.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import { useToast } from '@/Composables/useToast.js';
@@ -138,21 +139,9 @@ onUnmounted(() => {
                         <Bars3Icon class="h-6 w-6" aria-hidden="true" />
                     </button>
 
-                    <!-- Search Bar -->
+                    <!-- Global Search -->
                     <div class="flex-1 flex max-w-lg">
-                        <div class="relative w-full text-slate-400 focus-within:text-slate-600">
-                            <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                                <MagnifyingGlassIcon class="h-5 w-5" aria-hidden="true" />
-                            </div>
-                            <input 
-                                name="search" 
-                                id="search" 
-                                class="block w-full h-full pl-10 pr-3 py-2 border-transparent text-slate-900 placeholder-slate-400 focus:outline-none focus:placeholder-slate-500 focus:ring-0 focus:border-transparent sm:text-sm" 
-                                placeholder="Global Search (Ctrl+K)" 
-                                type="search" 
-                                autocomplete="off"
-                            >
-                        </div>
+                        <GlobalSearch />
                     </div>
                 </div>
 

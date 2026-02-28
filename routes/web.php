@@ -16,6 +16,7 @@ Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'ind
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/api/global-search', [\App\Http\Controllers\GlobalSearchController::class, 'search'])->name('api.global-search');
     Route::resource('users', UserController::class);
     Route::put('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
     

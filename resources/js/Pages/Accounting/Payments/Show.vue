@@ -17,7 +17,8 @@ import {
     DocumentTextIcon,
     ClockIcon,
     ChevronRightIcon,
-    LockClosedIcon
+    LockClosedIcon,
+    PlusIcon
 } from '@heroicons/vue/24/outline';
 import { useToast } from '@/Composables/useToast';
 import { useInputRestriction } from '@/Composables/useInputRestriction';
@@ -133,6 +134,53 @@ const getStatusColor = (status) => {
 const selectNextPending = () => {
     const nextPending = props.contract.payment_schedules.find(s => s.status !== 'Paid' && !form.schedule_ids.includes(s.id));
     if (nextPending) toggleSchedule(nextPending.id);
+};
+
+const getPaymentReference = (schedule) => {
+    if (schedule.status === 'Pending') return null;
+    
+    const sTime = new Date(schedule.updated_at).getTime();
+    
+    // 1. Primary: Time Proximity Matching (within 10 minutes)
+    // Find the amortization payment that was created closest to this schedule's update time
+    let closestPayment = null;
+    let minDiff = Infinity;
+
+    props.contract.payments?.forEach(p => {
+        if (p.payment_type !== 'Amortization') return;
+        
+        const pTime = new Date(p.created_at).getTime();
+        const diff = Math.abs(sTime - pTime);
+        
+        // 10 minute window (600,000 ms)
+        if (diff < 600000 && diff < minDiff) {
+            minDiff = diff;
+            closestPayment = p;
+        }
+    });
+
+    if (closestPayment) return closestPayment.reference_no;
+
+    // 2. Fallback: Ordinal matching (N-th paid installment matches N-th amortization payment)
+    const paidAmorts = props.contract.payment_schedules
+        ?.filter(s => s.status !== 'Pending' && s.type === 'Amortization')
+        .sort((a, b) => a.installment_no - b.installment_no) || [];
+    
+    const sIndex = paidAmorts.findIndex(s => s.id === schedule.id);
+    
+    const payments = props.contract.payments
+        ?.filter(p => p.payment_type === 'Amortization')
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) || [];
+
+    return payments[sIndex]?.reference_no;
+};
+
+// Check if a reference should be highlighted (from global search redirect)
+const isHighlighted = (ref) => {
+    if (!ref) return false;
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchVal = urlParams.get('search');
+    return searchVal && ref.toLowerCase() === searchVal.toLowerCase();
 };
 
 const totalOutstanding = computed(() => {
@@ -316,6 +364,7 @@ const groupedSchedules = computed(() => {
                                             <th class="px-4 py-4 text-right">Amount Due</th>
                                             <th class="px-4 py-4 text-right">Paid</th>
                                             <th class="px-4 py-4 text-right">Balance</th>
+                                            <th class="px-4 py-4 text-left">Reference #</th>
                                             <th class="px-8 py-4 text-right">Status</th>
                                         </tr>
                                     </thead>
@@ -337,7 +386,7 @@ const groupedSchedules = computed(() => {
                                                 class="group transition-all duration-150"
                                                 :class="[
                                                     s.status === 'Paid' 
-                                                        ? 'bg-slate-50/30 opacity-60 grayscale cursor-not-allowed' 
+                                                        ? (isHighlighted(getPaymentReference(s)) ? 'bg-yellow-50/50' : 'bg-slate-50/30 opacity-60 grayscale cursor-not-allowed')
                                                         : 'cursor-pointer hover:bg-slate-50',
                                                     form.schedule_ids.includes(s.id) ? 'bg-blue-50/50' : ''
                                                 ]"
@@ -346,13 +395,13 @@ const groupedSchedules = computed(() => {
                                                     <div 
                                                         class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all"
                                                         :class="[
-                                                            s.status === 'Paid' ? 'bg-slate-100 border-slate-200' :
+                                                            s.status === 'Paid' ? (isHighlighted(getPaymentReference(s)) ? 'bg-yellow-400 border-yellow-500 shadow-lg' : 'bg-slate-100 border-slate-200') :
                                                             (form.schedule_ids.includes(s.id)
                                                                 ? 'bg-blue-600 border-blue-600 shadow-sm shadow-blue-200'
                                                                 : 'border-slate-200 group-hover:border-slate-300 bg-white')
                                                         ]"
                                                     >
-                                                        <CheckCircleIcon v-if="form.schedule_ids.includes(s.id)" class="w-3.5 h-3.5 text-white" />
+                                                        <CheckCircleIcon v-if="form.schedule_ids.includes(s.id) || isHighlighted(getPaymentReference(s))" class="w-3.5 h-3.5 text-white" />
                                                         <LockClosedIcon v-else-if="s.status === 'Paid'" class="w-3 h-3 text-slate-400" />
                                                     </div>
                                                 </td>
@@ -370,6 +419,19 @@ const groupedSchedules = computed(() => {
                                                 </td>
                                                 <td class="px-4 py-4 text-right">
                                                     <span class="text-xs font-bold text-rose-600">{{ formatCurrency(parseFloat(s.amount_due) - parseFloat(s.amount_paid)) }}</span>
+                                                </td>
+                                                <td class="px-4 py-4 text-left">
+                                                    <span v-if="getPaymentReference(s)" 
+                                                          :class="[
+                                                              'text-[10px] font-black px-2 py-0.5 rounded border transition-all',
+                                                              isHighlighted(getPaymentReference(s)) 
+                                                                ? 'bg-yellow-400 text-slate-900 border-yellow-500 scale-125 shadow-md ring-2 ring-yellow-400/50' 
+                                                                : 'bg-blue-50 text-blue-600 border-blue-100'
+                                                          ]"
+                                                    >
+                                                        {{ getPaymentReference(s) }}
+                                                    </span>
+                                                    <span v-else class="text-[10px] text-slate-300 italic">—</span>
                                                 </td>
                                                 <td class="px-8 py-4 text-right">
                                                     <span :class="['inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter border', getStatusColor(s.status)]">

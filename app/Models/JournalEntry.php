@@ -28,14 +28,32 @@ class JournalEntry extends Model
     public function getReferenceUrlAttribute()
     {
         if (!$this->referenceable_type || !$this->referenceable_id) {
-            return null;
+            return route('journal-entries.show', $this->id);
         }
 
-        return match ($this->referenceable_type) {
-            'App\Models\Payment' => route('payments.index', ['search' => $this->reference_no]),
-            'App\Models\Reservation' => route('reservations.index', ['search' => $this->referenceable_id]),
-            default => null,
-        };
+        switch ($this->referenceable_type) {
+            case 'App\Models\Payment':
+                $payment = \App\Models\Payment::find($this->referenceable_id);
+                if ($payment && $payment->reservation_id) {
+                    $sale = \App\Models\ContractedSale::where('reservation_id', $payment->reservation_id)->first();
+                    if ($sale) {
+                        return route('payments.show', ['payment' => $sale->id, 'search' => $this->reference_no]);
+                    }
+                }
+                return route('payments.index', ['search' => $this->reference_no]);
+
+            case 'App\Models\Reservation':
+                return route('reservations.index', ['search' => $this->referenceable_id]);
+
+            case 'App\Models\Bill':
+                return route('accounting.bills.show', $this->referenceable_id);
+
+            case 'App\Models\Disbursement':
+                return route('accounting.disbursements.show', $this->referenceable_id);
+
+            default:
+                return route('journal-entries.show', $this->id);
+        }
     }
 
     public function company()

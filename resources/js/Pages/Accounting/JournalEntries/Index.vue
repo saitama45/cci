@@ -102,22 +102,19 @@ const formatDate = (date) => {
                                     {{ formatDate(entry.transaction_date) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <template v-if="entry.reference_url">
-                                        <a 
-                                            :href="entry.reference_url" 
-                                            target="_blank"
-                                            class="text-xs font-black text-blue-600 tracking-tighter bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors border border-blue-100 flex items-center w-fit"
-                                            :title="'View original transaction: ' + entry.reference_no"
-                                        >
-                                            {{ entry.reference_no || 'N/A' }}
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                            </svg>
-                                        </a>
-                                    </template>
-                                    <span v-else class="text-xs font-black text-slate-400 tracking-tighter bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                    <a 
+                                        :href="entry.reference_url" 
+                                        :target="entry.referenceable_type ? '_blank' : '_self'"
+                                        class="text-xs font-black tracking-tighter bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors border border-blue-100 flex items-center w-fit"
+                                        :class="entry.referenceable_type ? 'text-blue-600' : 'text-slate-600'"
+                                        :title="entry.referenceable_type ? 'View original transaction: ' + (entry.reference_no || 'N/A') : 'View Journal Details'"
+                                    >
                                         {{ entry.reference_no || 'Manual' }}
-                                    </span>
+                                        <svg v-if="entry.referenceable_type" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                        <EyeIcon v-else class="h-3 w-3 ml-1" />
+                                    </a>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-slate-600 font-medium">
                                     {{ entry.description }}
