@@ -17,6 +17,11 @@ Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'ind
 
 Route::middleware('auth')->group(function () {
     Route::get('/api/global-search', [\App\Http\Controllers\GlobalSearchController::class, 'search'])->name('api.global-search');
+    Route::get('admin/settings', [\App\Http\Controllers\SettingController::class, 'index'])->name('admin.settings.index');
+    Route::put('admin/settings/audit', [\App\Http\Controllers\SettingController::class, 'updateAuditSettings'])->name('admin.settings.audit.update');
+    Route::post('admin/settings/audit/prune', [\App\Http\Controllers\SettingController::class, 'pruneLogs'])->name('admin.settings.audit.prune');
+    Route::get('admin/activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('admin.activity-logs.index');
+
     Route::resource('users', UserController::class);
     Route::put('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
     
@@ -62,7 +67,10 @@ Route::middleware('auth')->group(function () {
                 'create' => 'accounting.purchase-orders.create',
                 'store' => 'accounting.purchase-orders.store',
                 'show' => 'accounting.purchase-orders.show',
-            ])->except(['edit', 'update', 'destroy']);
+                'edit' => 'accounting.purchase-orders.edit',
+                'update' => 'accounting.purchase-orders.update',
+                'destroy' => 'accounting.purchase-orders.destroy',
+            ]);
             Route::get('purchase-orders/{purchase_order}/print', [\App\Http\Controllers\PurchaseOrderController::class, 'print'])->name('accounting.purchase-orders.print');
             Route::post('purchase-orders/{purchase_order}/approve', [\App\Http\Controllers\PurchaseOrderController::class, 'approve'])->name('accounting.purchase-orders.approve');
             Route::post('purchase-orders/{purchase_order}/convert-to-bill', [\App\Http\Controllers\PurchaseOrderController::class, 'convertToBill'])->name('accounting.purchase-orders.convert-to-bill');

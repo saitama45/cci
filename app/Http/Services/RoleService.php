@@ -82,7 +82,7 @@ class RoleService
         ],
         'purchase_orders' => [
             'label' => 'Purchase Orders',
-            'permissions' => ['view', 'show', 'create', 'approve', 'print', 'convert']
+            'permissions' => ['view', 'show', 'create', 'edit', 'delete', 'approve', 'print', 'convert']
         ],
         'bills' => [
             'label' => 'Bills / Accounts Payable',
@@ -145,6 +145,8 @@ class RoleService
             ['label' => 'Companies', 'route' => 'companies.index'],
             ['label' => 'Roles & Permissions', 'route' => 'roles.index'],
             ['label' => 'Document Checklist', 'route' => 'document-requirements.index'],
+            ['label' => 'System Settings', 'route' => 'admin.settings.index'],
+            ['label' => 'Audit Trail', 'route' => 'admin.activity-logs.index'],
         ];
     }
 

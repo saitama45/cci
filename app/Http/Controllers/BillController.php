@@ -7,6 +7,7 @@ use App\Models\BillItem;
 use App\Models\Vendor;
 use App\Models\ChartOfAccount;
 use App\Models\Project;
+use App\Helpers\LogActivity;
 use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -165,6 +166,8 @@ class BillController extends Controller
                 'created_by' => Auth::id(),
             ]);
 
+            LogActivity::log('Procurement', 'Created', "Created {$bill->type} #{$bill->bill_number}", $bill);
+
             foreach ($validated['items'] as $item) {
                 BillItem::create([
                     'bill_id' => $bill->id,
@@ -242,6 +245,8 @@ class BillController extends Controller
                 $oldStatus = $bill->status;
                 $bill->update($validated);
 
+                LogActivity::log('Procurement', $bill->status, "Updated status of {$bill->type} #{$bill->bill_number} to {$bill->status}", $bill);
+
                 if ($oldStatus === 'Draft' && $bill->status === 'Approved') {
                     $this->accountingService->recordBill($bill);
                 }
@@ -313,6 +318,8 @@ class BillController extends Controller
                 'project_id' => $validated['project_id'],
             ]);
 
+            LogActivity::log('Procurement', 'Updated', "Updated {$bill->type} #{$bill->bill_number}", $bill);
+
             // Sync items (Delete old, create new is simplest for line items)
             $bill->items()->delete();
             foreach ($validated['items'] as $item) {
@@ -345,6 +352,8 @@ class BillController extends Controller
         if ($bill->status !== 'Draft') {
             return redirect()->back()->with('error', 'Only Draft bills can be deleted.');
         }
+
+        LogActivity::log('Procurement', 'Deleted', "Deleted {$bill->type} #{$bill->bill_number}", $bill);
 
         $bill->delete();
 

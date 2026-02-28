@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\ChartOfAccount;
 use App\Models\Bill;
 use App\Models\BillItem;
+use App\Helpers\LogActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -111,6 +112,8 @@ class PurchaseOrderController extends Controller
                 'prepared_by' => Auth::id(),
             ]);
 
+            LogActivity::log('Procurement', 'Created', "Created Purchase Order #{$po->po_number}", $po);
+
             foreach ($validated['items'] as $item) {
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $po->id,
@@ -124,6 +127,117 @@ class PurchaseOrderController extends Controller
         });
 
         return redirect()->route('accounting.purchase-orders.index')->with('success', 'Purchase Order created successfully.');
+    }
+
+    public function edit(PurchaseOrder $purchaseOrder)
+    {
+        if ($purchaseOrder->status !== 'Draft') {
+            return redirect()->back()->with('error', 'Only draft POs can be edited.');
+        }
+
+        $purchaseOrder->load('items');
+        
+        // Ensure dates are formatted correctly for input fields to avoid timezone shifts
+        $purchaseOrder->po_date_formatted = $purchaseOrder->po_date->format('Y-m-d');
+        if ($purchaseOrder->expected_delivery_date) {
+            $purchaseOrder->expected_delivery_date_formatted = $purchaseOrder->expected_delivery_date->format('Y-m-d');
+        }
+
+        $companyId = Auth::user()->company_id ?? (\App\Models\Company::first()->id ?? null);
+
+        return Inertia::render('Accounting/PurchaseOrders/Create', [
+            'purchaseOrder' => $purchaseOrder,
+            'vendors' => Vendor::where('company_id', $companyId)->where('is_active', true)->where('verification_status', 'Verified')->get(),
+            'projects' => Project::where('company_id', $companyId)->get(),
+            'accounts' => ChartOfAccount::where('company_id', $companyId)->whereIn('type', ['expense', 'asset'])->get(),
+            'isEditing' => true,
+        ]);
+    }
+
+    public function update(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        if ($purchaseOrder->status !== 'Draft') {
+            return redirect()->back()->with('error', 'Approved or billed POs cannot be modified.');
+        }
+
+        $validated = $request->validate([
+            'vendor_id' => 'required|exists:vendors,id',
+            'project_id' => 'nullable|exists:projects,id',
+            'po_number' => 'required|string|unique:purchase_orders,po_number,' . $purchaseOrder->id,
+            'po_date' => 'required|date',
+            'expected_delivery_date' => 'nullable|date',
+            'notes' => 'nullable|string',
+            'tax_type' => 'required|in:VAT Inclusive,VAT Exclusive,Non-VAT',
+            'ewt_rate' => 'required|numeric|min:0|max:15',
+            'items' => 'required|array|min:1',
+            'items.*.chart_of_account_id' => 'required|exists:chart_of_accounts,id',
+            'items.*.description' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.unit_price' => 'required|numeric|min:0',
+        ]);
+
+        DB::transaction(function () use ($validated, $purchaseOrder) {
+            $grossAmount = collect($validated['items'])->sum(fn($i) => $i['quantity'] * $i['unit_price']);
+            
+            $vatAmount = 0;
+            $netOfVat = $grossAmount;
+
+            if ($validated['tax_type'] === 'VAT Inclusive') {
+                $netOfVat = $grossAmount / 1.12;
+                $vatAmount = $grossAmount - $netOfVat;
+            } elseif ($validated['tax_type'] === 'VAT Exclusive') {
+                $vatAmount = $grossAmount * 0.12;
+                $grossAmount = $grossAmount + $vatAmount;
+            }
+
+            $ewtAmount = $netOfVat * ($validated['ewt_rate'] / 100);
+            $netAmount = $grossAmount - $ewtAmount;
+
+            $purchaseOrder->update([
+                'vendor_id' => $validated['vendor_id'],
+                'project_id' => $validated['project_id'],
+                'po_number' => $validated['po_number'],
+                'po_date' => $validated['po_date'],
+                'expected_delivery_date' => $validated['expected_delivery_date'],
+                'total_amount' => $grossAmount,
+                'tax_type' => $validated['tax_type'],
+                'vat_amount' => $vatAmount,
+                'ewt_rate' => $validated['ewt_rate'],
+                'ewt_amount' => $ewtAmount,
+                'net_amount' => $netAmount,
+                'notes' => $validated['notes'],
+            ]);
+
+            // Simple sync: delete old, create new
+            $purchaseOrder->items()->delete();
+            foreach ($validated['items'] as $item) {
+                PurchaseOrderItem::create([
+                    'purchase_order_id' => $purchaseOrder->id,
+                    'chart_of_account_id' => $item['chart_of_account_id'],
+                    'description' => $item['description'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'amount' => $item['quantity'] * $item['unit_price'],
+                ]);
+            }
+
+            LogActivity::log('Procurement', 'Updated', "Updated Purchase Order #{$purchaseOrder->po_number}", $purchaseOrder);
+        });
+
+        return redirect()->route('accounting.purchase-orders.index')->with('success', 'Purchase Order updated successfully.');
+    }
+
+    public function destroy(PurchaseOrder $purchaseOrder)
+    {
+        if ($purchaseOrder->status !== 'Draft') {
+            return redirect()->back()->with('error', 'Only draft POs can be deleted.');
+        }
+
+        LogActivity::log('Procurement', 'Deleted', "Deleted Purchase Order #{$purchaseOrder->po_number} ({$purchaseOrder->id})");
+        
+        $purchaseOrder->delete();
+
+        return redirect()->route('accounting.purchase-orders.index')->with('success', 'Purchase Order deleted.');
     }
 
     public function show(PurchaseOrder $purchaseOrder)
@@ -156,6 +270,8 @@ class PurchaseOrderController extends Controller
             'status' => 'Approved',
             'approved_by' => Auth::id()
         ]);
+
+        LogActivity::log('Procurement', 'Approved', "Approved Purchase Order #{$purchaseOrder->po_number}", $purchaseOrder);
 
         return redirect()->back()->with('success', 'Purchase Order approved.');
     }
@@ -244,6 +360,8 @@ class PurchaseOrderController extends Controller
             foreach ($billItemsData as $item) {
                 BillItem::create(array_merge($item, ['bill_id' => $bill->id]));
             }
+
+            LogActivity::log('Procurement', 'Converted', "Converted PO #{$purchaseOrder->po_number} to Bill #{$bill->bill_number}", $bill);
 
             // Update PO Overall Status
             $totalOrdered = $purchaseOrder->items()->sum('quantity');

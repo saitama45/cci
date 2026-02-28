@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\DocumentRequirement;
+use App\Helpers\LogActivity;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -73,7 +74,9 @@ class CustomerController extends Controller
             $validated['profile_photo'] = $request->file('profile_photo')->store('customers', 'public');
         }
 
-        Customer::create($validated);
+        $customer = Customer::create($validated);
+
+        LogActivity::log('Sales', 'Created', "Created Customer: {$customer->full_name}", $customer);
 
         return redirect()->back()->with('success', 'Customer created successfully.');
     }
@@ -107,6 +110,8 @@ class CustomerController extends Controller
 
         $customer->update($validated);
 
+        LogActivity::log('Sales', 'Updated', "Updated Customer: {$customer->full_name}", $customer);
+
         return redirect()->back()->with('success', 'Customer updated successfully.');
     }
 
@@ -129,6 +134,8 @@ class CustomerController extends Controller
         if (Storage::disk('public')->exists($directory)) {
             Storage::disk('public')->deleteDirectory($directory);
         }
+
+        LogActivity::log('Sales', 'Deleted', "Deleted Customer: {$customer->full_name} (#{$customer->id})");
 
         $customer->delete();
         

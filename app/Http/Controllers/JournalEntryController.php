@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Helpers\LogActivity;
 use App\Models\ChartOfAccount;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -72,6 +73,8 @@ class JournalEntryController extends Controller
                 'reference_no' => $validated['reference_no'],
                 'description' => $validated['description'],
             ]);
+
+            LogActivity::log('Accounting', 'Created', "Recorded Manual Journal Entry (Ref: " . ($journalEntry->reference_no ?? 'None') . ")", $journalEntry);
 
             foreach ($validated['lines'] as $line) {
                 if ($line['debit'] > 0 || $line['credit'] > 0) {

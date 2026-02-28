@@ -7,6 +7,7 @@ use App\Models\Vendor;
 use App\Models\Bill;
 use App\Models\ChartOfAccount;
 use App\Models\PdcVault;
+use App\Helpers\LogActivity;
 use App\Services\DisbursementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -239,6 +240,7 @@ class DisbursementController extends Controller
     public function markAsBounced(PdcVault $pdc)
     {
         $pdc->update(['status' => 'Bounced']);
+        LogActivity::log('Treasury', 'Bounced', "Marked PDC Check #{$pdc->check_no} as Bounced", $pdc);
         return redirect()->back()->with('success', "Check #{$pdc->check_no} marked as Bounced.");
     }
 

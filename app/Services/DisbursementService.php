@@ -6,6 +6,7 @@ use App\Models\Disbursement;
 use App\Models\DisbursementItem;
 use App\Models\Bill;
 use App\Models\PdcVault;
+use App\Helpers\LogActivity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -58,6 +59,8 @@ class DisbursementService
                 ]));
             }
 
+            LogActivity::log('Procurement', 'Created', "Created Payment Voucher #{$disbursement->voucher_no}", $disbursement);
+
             return $disbursement;
         });
     }
@@ -106,6 +109,8 @@ class DisbursementService
                 'approved_by' => Auth::id(),
             ]);
 
+            LogActivity::log('Procurement', 'Approved', "Approved Payment Voucher #{$disbursement->voucher_no}", $disbursement);
+
             return $disbursement;
         });
     }
@@ -121,10 +126,7 @@ class DisbursementService
                 'cleared_date' => $dateCleared,
             ]);
 
-            // Note: If we had a separate "Checks Issued" GL account (Liability), 
-            // we would move from Checks Issued (Debit) to Cash in Bank (Credit).
-            // For now, if the PV already credited bank, no additional entry is needed 
-            // unless we're using a two-step clearing process.
+            LogActivity::log('Treasury', 'Cleared', "Cleared PDC Check #{$pdc->check_no} ({$pdc->bank_name})", $pdc);
             
             return $pdc;
         });

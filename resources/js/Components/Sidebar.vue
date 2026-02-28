@@ -71,7 +71,7 @@ onMounted(() => {
     if (route().current('payments.*') || route().current('accounting.reconciliations.*') || route().current('accounting.banks.*')) openMenus.value.treasury = true;
     if (route().current('chart-of-accounts.*') || route().current('journal-entries.*')) openMenus.value.accounting = true;
     if (route().current('accounting.trial-balance') || route().current('accounting.general-ledger') || route().current('accounting.project-pl') || route().current('accounting.ar-aging') || route().current('accounting.ap-aging') || route().current('accounting.overall-receivables')) openMenus.value.reports = true;
-    if (route().current('users.*') || route().current('companies.*') || route().current('roles.*') || route().current('document-requirements.*')) openMenus.value.admin = true;
+    if (route().current('users.*') || route().current('companies.*') || route().current('roles.*') || route().current('document-requirements.*') || route().current('admin.settings.*') || route().current('admin.activity-logs.*')) openMenus.value.admin = true;
 });
 
 // Scroll Persistence Logic
@@ -350,6 +350,8 @@ const handleMouseLeave = () => {
                         <Link v-if="hasPermission('companies.view')" :href="route('companies.index')" :class="[route().current('companies.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Companies</Link>
                         <Link v-if="hasPermission('roles.view')" :href="route('roles.index')" :class="[route().current('roles.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Roles & Permissions</Link>
                         <Link v-if="hasPermission('document_requirements.view')" :href="route('document-requirements.index')" :class="[route().current('document-requirements.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Document Checklist</Link>
+                        <Link v-if="hasPermission('roles.view')" :href="route('admin.settings.index')" :class="[route().current('admin.settings.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">System Settings</Link>
+                        <Link v-if="hasPermission('roles.view')" :href="route('admin.activity-logs.index')" :class="[route().current('admin.activity-logs.*') ? 'text-blue-400 font-bold' : 'text-slate-500 hover:text-white', 'block py-1.5 text-xs transition-colors']">Audit Trail</Link>
                     </div>
                 </div>
 

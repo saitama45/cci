@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Payment;
 use App\Models\Customer;
+use App\Helpers\LogActivity;
 use App\Models\Reservation;
 use App\Models\ChartOfAccount;
 use App\Services\AccountingService;
@@ -138,6 +139,8 @@ class PaymentController extends Controller
 
                     $checkNoInt++;
                 }
+
+                LogActivity::log('Treasury', 'Created', "Generated " . count($validated['schedule_ids']) . " Bulk PDCs for Contract #{$contract->contract_no}", $contract);
             } else {
                 // Standard Single Payment Logic
                 $payment = Payment::create([
@@ -204,6 +207,8 @@ class PaymentController extends Controller
                     
                     $totalAmount -= $toPay;
                 }
+
+                LogActivity::log('Treasury', 'Created', "Recorded Amortization Payment of ₱" . number_format($validated['amount'], 2) . " via {$validated['payment_method']} (Ref: {$validated['reference_no']})", $payment);
 
                 $this->accountingService->recordGeneralPaymentReceipt($payment, $totalPrincipalPaid, $totalInterestPaid);
             }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ContractedSale;
 use App\Models\PaymentSchedule;
+use App\Helpers\LogActivity;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
@@ -114,6 +115,8 @@ class ContractedSalesController extends Controller
                     ]);
                 }
             }
+
+            LogActivity::log('Sales', 'Repriced', "Recalculated Amortization Schedule for Contract #{$sale->contract_no} with new interest rates.", $sale);
         });
 
         return redirect()->back()->with('success', 'Full interest schedule recalculated successfully.');

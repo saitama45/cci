@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Unit;
 use App\Models\Broker;
 use App\Models\Payment;
+use App\Helpers\LogActivity;
 use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -133,6 +134,8 @@ class ReservationController extends Controller
                 'expiry_date' => $validated['expiry_date'],
                 'fee' => $validated['fee'],
             ]);
+
+            LogActivity::log('Sales', 'Created', "Created Reservation for {$reservation->customer->full_name} on Unit {$reservation->unit->name}", $reservation);
             
             // Update unit status to Reserved
             Unit::where('id', $validated['unit_id'])->update(['status' => 'Reserved']);
@@ -186,6 +189,8 @@ class ReservationController extends Controller
             }
             
             $reservation->update($validated);
+
+            LogActivity::log('Sales', 'Updated', "Updated Reservation details for {$reservation->customer->full_name}", $reservation);
             
             // Synchronize associated accounting records (Payment and Journal Entries)
             $this->accountingService->updateReservationAccounting($reservation);
@@ -216,6 +221,8 @@ class ReservationController extends Controller
             \App\Models\JournalEntry::where('referenceable_type', get_class($reservation))
                 ->where('referenceable_id', $reservation->id)
                 ->delete();
+
+            LogActivity::log('Sales', 'Deleted', "Deleted Reservation for {$reservation->customer->full_name} (Unit: {$reservation->unit->name})");
 
             $reservation->delete();
         });
@@ -295,6 +302,8 @@ class ReservationController extends Controller
             $reservation->update(['status' => 'Contracted']);
             $reservation->unit->update(['status' => 'Sold']);
 
+            LogActivity::log('Sales', 'Contracted', "Generated Contract {$contractNo} from Reservation", $contractedSale);
+
             // Accounting revenue recognition - Fix: recognize Total Paid (Fee + DP)
             $payment = $reservation->payments()->first();
             $referenceNo = $payment ? $payment->reference_no : null;
@@ -349,6 +358,8 @@ class ReservationController extends Controller
 
         DB::transaction(function () use ($reservation, $validated) {
             $reservation->update(['status' => $validated['action'] === 'Refund' ? 'Refunded' : 'Cancelled']);
+
+            LogActivity::log('Sales', $reservation->status, "{$validated['action']} Reservation for {$reservation->customer->full_name}", $reservation);
             
             // Revert unit status to Available
             Unit::where('id', $reservation->unit_id)->update(['status' => 'Available']);
@@ -390,6 +401,8 @@ class ReservationController extends Controller
                 'payment_method' => $validated['payment_method'],
                 'reference_no' => $validated['reference_no'],
             ]);
+
+            LogActivity::log('Sales', 'Payment', "Recorded {$validated['payment_type']} payment of ₱" . number_format($validated['amount'], 2) . " for {$reservation->customer->full_name}", $payment);
 
             $this->accountingService->recordReservationFeeReceipt($payment);
         });

@@ -18,21 +18,28 @@ import { useToast } from '@/Composables/useToast';
 const props = defineProps({
     vendors: Array,
     projects: Array,
-    accounts: Array
+    accounts: Array,
+    purchaseOrder: Object,
+    isEditing: Boolean
 });
 
 const { showError } = useToast();
 
 const form = useForm({
-    vendor_id: '',
-    project_id: '',
-    po_number: 'PO-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000),
-    po_date: new Date().toISOString().split('T')[0],
-    expected_delivery_date: '',
-    notes: '',
-    tax_type: 'VAT Exclusive',
-    ewt_rate: 0,
-    items: [
+    vendor_id: props.purchaseOrder?.vendor_id || '',
+    project_id: props.purchaseOrder?.project_id || '',
+    po_number: props.purchaseOrder?.po_number || 'PO-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000),
+    po_date: props.purchaseOrder?.po_date_formatted || new Date().toISOString().split('T')[0],
+    expected_delivery_date: props.purchaseOrder?.expected_delivery_date_formatted || '',
+    notes: props.purchaseOrder?.notes || '',
+    tax_type: props.purchaseOrder?.tax_type || 'VAT Exclusive',
+    ewt_rate: props.purchaseOrder ? Number(props.purchaseOrder.ewt_rate) : 0,
+    items: props.purchaseOrder?.items?.map(item => ({
+        chart_of_account_id: item.chart_of_account_id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price
+    })) || [
         { chart_of_account_id: '', description: '', quantity: 1, unit_price: 0 }
     ]
 });
@@ -86,11 +93,19 @@ const budgetAlert = computed(() => {
 });
 
 const submit = () => {
-    form.post(route('accounting.purchase-orders.store'), {
-        onError: (errors) => {
-            showError('Please check the form for errors.');
-        }
-    });
+    if (props.isEditing) {
+        form.put(route('accounting.purchase-orders.update', props.purchaseOrder.id), {
+            onError: (errors) => {
+                showError('Please check the form for errors.');
+            }
+        });
+    } else {
+        form.post(route('accounting.purchase-orders.store'), {
+            onError: (errors) => {
+                showError('Please check the form for errors.');
+            }
+        });
+    }
 };
 
 const formatCurrency = (value) => {
@@ -111,7 +126,7 @@ const formatCurrency = (value) => {
                     <ChevronLeftIcon class="w-6 h-6" />
                 </Link>
                 <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                    New Purchase Order
+                    {{ isEditing ? 'Modify Purchase Order' : 'New Purchase Order' }}
                 </h2>
             </div>
         </template>
@@ -228,9 +243,9 @@ const formatCurrency = (value) => {
                                         <tr>
                                             <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest w-1/4">GL Account</th>
                                             <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                                            <th class="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-24">Qty</th>
-                                            <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Unit Price</th>
-                                            <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">Total</th>
+                                            <th class="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Qty</th>
+                                            <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest w-44">Unit Price</th>
+                                            <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest w-48">Total</th>
                                             <th class="px-6 py-4 w-12"></th>
                                         </tr>
                                     </thead>
@@ -278,7 +293,7 @@ const formatCurrency = (value) => {
                         <div class="flex items-center justify-end space-x-4 border-t border-slate-100 pt-8">
                             <Link :href="route('accounting.purchase-orders.index')" class="px-8 py-3 text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Cancel</Link>
                             <button type="submit" :disabled="form.processing" class="px-10 py-4 bg-indigo-600 text-white text-xs font-black rounded-2xl shadow-xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all uppercase tracking-widest">
-                                Save Draft Order
+                                {{ isEditing ? 'Update Purchase Order' : 'Save Draft Order' }}
                             </button>
                         </div>
                     </div>

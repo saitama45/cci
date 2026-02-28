@@ -8,11 +8,15 @@ import { usePermission } from '@/Composables/usePermission';
 import { 
     PlusIcon,
     EyeIcon,
+    PencilSquareIcon,
+    TrashIcon,
     ShoppingCartIcon,
     BuildingOfficeIcon,
     CalendarIcon,
     CheckCircleIcon
 } from '@heroicons/vue/24/outline';
+import { useConfirm } from '@/Composables/useConfirm';
+import { useToast } from '@/Composables/useToast';
 
 const props = defineProps({
     purchaseOrders: Object,
@@ -20,6 +24,8 @@ const props = defineProps({
 });
 
 const { hasPermission } = usePermission();
+const { confirm } = useConfirm();
+const { showSuccess, showError } = useToast();
 
 const statusFilter = ref(props.filters?.status || '');
 
@@ -38,6 +44,21 @@ watch(statusFilter, () => {
 watch(() => props.purchaseOrders, (newData) => {
     pagination.updateData(newData);
 }, { deep: true });
+
+const deletePO = async (po) => {
+    const isConfirmed = await confirm({
+        title: 'Delete Purchase Order',
+        message: `Are you sure you want to delete PO #${po.po_number}? This action cannot be undone.`,
+        type: 'danger'
+    });
+
+    if (isConfirmed) {
+        pagination.destroy(route('accounting.purchase-orders.destroy', po.id), {
+            onSuccess: () => showSuccess('Purchase Order deleted successfully.'),
+            onError: () => showError('Failed to delete Purchase Order.')
+        });
+    }
+};
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-PH', {
@@ -157,13 +178,33 @@ const getStatusClass = (status) => {
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <Link
-                                            :href="route('accounting.purchase-orders.show', po.id)"
-                                            class="text-indigo-600 hover:text-indigo-900"
-                                            title="View Details"
-                                        >
-                                            <EyeIcon class="w-5 h-5 ml-auto" />
-                                        </Link>
+                                        <div class="flex justify-end space-x-2">
+                                            <Link
+                                                :href="route('accounting.purchase-orders.show', po.id)"
+                                                class="text-indigo-600 hover:text-indigo-900"
+                                                title="View Details"
+                                            >
+                                                <EyeIcon class="w-5 h-5" />
+                                            </Link>
+
+                                            <Link
+                                                v-if="po.status === 'Draft' && hasPermission('purchase_orders.edit')"
+                                                :href="route('accounting.purchase-orders.edit', po.id)"
+                                                class="text-amber-600 hover:text-amber-900"
+                                                title="Edit Draft"
+                                            >
+                                                <PencilSquareIcon class="w-5 h-5" />
+                                            </Link>
+
+                                            <button
+                                                v-if="po.status === 'Draft' && hasPermission('purchase_orders.delete')"
+                                                @click="deletePO(po)"
+                                                class="text-rose-600 hover:text-rose-900"
+                                                title="Delete Draft"
+                                            >
+                                                <TrashIcon class="w-5 h-5" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </template>
