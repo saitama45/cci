@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Facades\Cache;
+use App\Services\NotificationService;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -55,12 +56,16 @@ class HandleInertiaRequests extends Middleware
             
             // Ensure necessary relations are loaded for the user object in the frontend
             $user->loadMissing(['roles.companies']);
+
+            // Get Virtual Notifications (Active Alerts)
+            $notifications = NotificationService::getActiveAlerts($user);
         }
         
         return array_merge(parent::share($request), [
             'auth' => [
                 'user' => $user,
                 'permissions' => array_values($permissions),
+                'notifications' => $notifications ?? [],
             ],
             'flash' => [
                 'success' => $request->session()->get('success'),

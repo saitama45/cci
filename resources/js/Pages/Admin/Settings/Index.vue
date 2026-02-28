@@ -41,7 +41,7 @@ const runManualPrune = async () => {
     });
 
     if (isConfirmed) {
-        router.post(route('admin.settings.audit.prune'), {}, {
+        router.post(route('admin.settings.audit.prune'), {
             preserveScroll: true,
             onError: () => showError('Failed to run cleanup.')
         });

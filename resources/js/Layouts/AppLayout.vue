@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import Sidebar from '@/Components/Sidebar.vue';
 import GlobalSearch from '@/Components/GlobalSearch.vue';
+import NotificationDropdown from '@/Components/NotificationDropdown.vue';
 import Toast from '@/Components/Toast.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import { useToast } from '@/Composables/useToast.js';
@@ -148,11 +149,7 @@ onUnmounted(() => {
                 <!-- Right Header Controls -->
                 <div class="ml-4 flex items-center md:ml-6 space-x-4">
                     <!-- Notifications -->
-                    <button class="bg-white p-1 rounded-full text-slate-400 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative">
-                        <span class="sr-only">View notifications</span>
-                        <BellIcon class="h-6 w-6" aria-hidden="true" />
-                        <span class="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-                    </button>
+                    <NotificationDropdown />
 
                     <!-- Profile Dropdown -->
                     <div class="relative" ref="userMenuRef">
