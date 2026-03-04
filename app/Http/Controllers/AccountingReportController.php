@@ -458,7 +458,9 @@ class AccountingReportController extends Controller
             foreach ($contract->paymentSchedules as $s) {
                 if ($s->type !== 'Amortization') continue;
                 
-                $unpaid = (float)$s->amount_due - (float)$s->amount_paid;
+                $unpaidRaw = (float)$s->amount_due - (float)$s->amount_paid;
+                $unpaid = round($unpaidRaw, 2);
+                
                 if ($unpaid <= 0) continue;
 
                 $totalBalance += $unpaid;
@@ -582,12 +584,15 @@ class AccountingReportController extends Controller
             ->get();
 
         $reportData = $contracts->map(function ($contract) use ($asOf) {
-            // Only process Amortization schedules
-            $schedules = $contract->paymentSchedules->where('type', 'Amortization');
+            // Only process Amortization schedules, sorted by due date
+            $schedules = $contract->paymentSchedules
+                ->where('type', 'Amortization')
+                ->sortBy('due_date');
             
-            // Only consider Amortization payments for last pay date
+            // Last payment date should be ON OR BEFORE the asOf date
             $lastAmortPayment = $contract->payments
                 ->where('payment_type', 'Amortization')
+                ->where('payment_date', '<=', $asOf)
                 ->sortByDesc('payment_date')
                 ->first();
             
@@ -604,7 +609,9 @@ class AccountingReportController extends Controller
             ];
 
             foreach ($schedules as $s) {
-                $unpaid = (float)$s->amount_due - (float)$s->amount_paid;
+                $unpaidRaw = (float)$s->amount_due - (float)$s->amount_paid;
+                $unpaid = round($unpaidRaw, 2);
+                
                 if ($unpaid <= 0) continue;
 
                 $aging['outstanding_balance'] += $unpaid;
